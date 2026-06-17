@@ -71,23 +71,34 @@
     </div>
 
     <script>
-        async function checkQueue() {
-            const res = await fetch("/queue/status");
-            const data = await res.json();
+    let timerId = null;
+    let isMoving = false;
 
-            document.getElementById("queueNo").innerText =
-                `내 대기번호: ${data.queue_no}번`;
+    async function checkQueue() {
+        if (isMoving) return;
 
-            document.getElementById("waitingCount").innerText =
-                `앞 대기자 수: ${data.waiting_count}명`;
+        const res = await fetch("/queue/status");
+        const data = await res.json();
 
-            if (data.can_enter) {
-                location.href = "/apply";
+        document.getElementById("queueNo").innerText =
+            `내 대기번호: ${data.queue_no}번`;
+
+        document.getElementById("waitingCount").innerText =
+            `앞 대기자 수: ${data.waiting_count}명`;
+
+        if (data.can_enter) {
+            isMoving = true;
+
+            if (timerId) {
+                clearInterval(timerId);
             }
-        }
 
-        setInterval(checkQueue, 1000);
-        checkQueue();
-    </script>
+            location.replace("/apply");
+        }
+    }
+
+    timerId = setInterval(checkQueue, 1000);
+    checkQueue();
+</script>
 </body>
 </html>

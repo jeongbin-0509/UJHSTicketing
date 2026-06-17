@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>관리자 페이지</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 30px;
+            background: #f4f6f8;
+        }
+
+        .summary {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 18px;
+            border-radius: 12px;
+            min-width: 150px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+        }
+
+        .card strong {
+            font-size: 24px;
+            color: #2563eb;
+        }
+
+        a {
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 10px 14px;
+            background: #16a34a;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background: #2563eb;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h2>입시설명회 신청자 목록</h2>
+
+    <div class="summary">
+        <div class="card">전체 좌석<br><strong>{{ total_seats }}</strong></div>
+        <div class="card">사용 좌석<br><strong>{{ used_seats }}</strong></div>
+        <div class="card">남은 좌석<br><strong>{{ remaining }}</strong></div>
+    </div>
+
+    <a href="/admin/excel">엑셀 다운로드</a>
+
+    <table>
+        <thead>
+            <tr>
+                <th>번호</th>
+                <th>학생 이름</th>
+                <th>학생 전화번호</th>
+                <th>보호자 이름</th>
+                <th>보호자 전화번호</th>
+                <th>신청 인원</th>
+                <th>배정 좌석</th>
+                <th>신청 시간</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in reservations %}
+            <tr>
+                <td>{{ r.id }}</td>
+                <td>{{ r.student_name }}</td>
+                <td>{{ r.student_phone }}</td>
+                <td>{{ r.parent_name }}</td>
+                <td>{{ r.parent_phone }}</td>
+                <td>{{ r.people_count }}</td>
+                <td>{{ r.seat_numbers }}</td>
+                <td>{{ r.created_at }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

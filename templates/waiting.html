@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>입장 대기</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #eef2f7;
+            display: flex;
+            justify-content: center;
+            padding-top: 80px;
+        }
+
+        .box {
+            width: 430px;
+            background: white;
+            padding: 35px 30px;
+            border-radius: 18px;
+            text-align: center;
+            box-shadow: 0 6px 25px rgba(0,0,0,0.1);
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .loader {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #ddd;
+            border-top: 5px solid #2563eb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 24px auto;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .info {
+            margin-top: 18px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #2563eb;
+        }
+
+        .desc {
+            color: #555;
+            line-height: 1.6;
+            margin-top: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <div class="title">입장 대기 중입니다</div>
+        <div class="loader"></div>
+
+        <div class="desc">
+            현재 접속자가 많아 순서대로 입장하고 있습니다.<br>
+            새로고침하지 말고 기다려 주세요.
+        </div>
+
+        <div class="info" id="queueNo">내 대기번호: 계산 중...</div>
+        <div class="info" id="waitingCount">앞 대기자 수: 계산 중...</div>
+    </div>
+
+    <script>
+        async function checkQueue() {
+            const res = await fetch("/queue/status");
+            const data = await res.json();
+
+            document.getElementById("queueNo").innerText =
+                `내 대기번호: ${data.queue_no}번`;
+
+            document.getElementById("waitingCount").innerText =
+                `앞 대기자 수: ${data.waiting_count}명`;
+
+            if (data.can_enter) {
+                location.href = "/apply";
+            }
+        }
+
+        setInterval(checkQueue, 1000);
+        checkQueue();
+    </script>
+</body>
+</html>

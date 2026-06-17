@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>입시설명회 신청</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #eef2f7;
+            display: flex;
+            justify-content: center;
+            padding-top: 50px;
+        }
+
+        .box {
+            width: 430px;
+            background: white;
+            padding: 30px;
+            border-radius: 18px;
+            box-shadow: 0 6px 25px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .remain {
+            text-align: center;
+            margin-bottom: 25px;
+            font-weight: bold;
+            color: #2563eb;
+        }
+
+        label {
+            display: block;
+            margin-top: 14px;
+            font-weight: bold;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 6px;
+            border: 1px solid #ccc;
+            border-radius: 9px;
+            box-sizing: border-box;
+            font-size: 15px;
+        }
+
+        .phone-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .phone-row input {
+            text-align: center;
+        }
+
+        .phone-row span {
+            margin-top: 6px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        button {
+            margin-top: 24px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        .notice {
+            margin-top: 18px;
+            font-size: 14px;
+            color: #555;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h2>운정고 설명회 신청</h2>
+    <div class="remain">남은 좌석: {{ remaining }}석</div>
+
+    <form action="/reserve" method="POST" id="reserve-form">
+        <label>학생 이름</label>
+        <input type="text" name="student_name" id="student_name" required placeholder="예: 홍길동">
+
+        <label>학생 전화번호</label>
+        <div class="phone-row">
+            <input type="text" id="student_phone_1" maxlength="3" inputmode="numeric" value="010" required>
+            <span>-</span>
+            <input type="text" id="student_phone_2" maxlength="4" inputmode="numeric" required>
+            <span>-</span>
+            <input type="text" id="student_phone_3" maxlength="4" inputmode="numeric" required>
+        </div>
+        <input type="hidden" name="student_phone" id="student_phone">
+
+        <label>보호자 이름</label>
+        <input type="text" name="parent_name" id="parent_name" required placeholder="예: 홍길동">
+
+        <label>보호자 전화번호</label>
+        <div class="phone-row">
+            <input type="text" id="parent_phone_1" maxlength="3" inputmode="numeric" value="010" required>
+            <span>-</span>
+            <input type="text" id="parent_phone_2" maxlength="4" inputmode="numeric" required>
+            <span>-</span>
+            <input type="text" id="parent_phone_3" maxlength="4" inputmode="numeric" required>
+        </div>
+        <input type="hidden" name="parent_phone" id="parent_phone">
+
+        <label>신청 인원</label>
+        <select name="people_count" required>
+            <option value="1">1명</option>
+            <option value="2">2명</option>
+        </select>
+
+        <button type="submit">신청하기</button>
+    </form>
+
+    <div class="notice">
+        ※ 신청 완료 후 좌석번호가 자동 배정됩니다.<br>
+        ※ 같은 학생 전화번호로 중복 신청할 수 없습니다.
+    </div>
+</div>
+
+<script>
+    const form = document.getElementById("reserve-form");
+
+    const studentName = document.getElementById("student_name");
+    const parentName = document.getElementById("parent_name");
+
+    const studentPhone1 = document.getElementById("student_phone_1");
+    const studentPhone2 = document.getElementById("student_phone_2");
+    const studentPhone3 = document.getElementById("student_phone_3");
+
+    const parentPhone1 = document.getElementById("parent_phone_1");
+    const parentPhone2 = document.getElementById("parent_phone_2");
+    const parentPhone3 = document.getElementById("parent_phone_3");
+
+    function onlyNumber(input) {
+        input.value = input.value.replace(/[^0-9]/g, "");
+    }
+
+    function isValidName(name) {
+        return /^[가-힣a-zA-Z\s]+$/.test(name);
+    }
+
+    function autoMove(currentInput, nextInput, maxLength) {
+        currentInput.addEventListener("input", () => {
+            onlyNumber(currentInput);
+
+            if (currentInput.value.length >= maxLength) {
+                nextInput.focus();
+            }
+        });
+    }
+
+    autoMove(studentPhone1, studentPhone2, 3);
+    autoMove(studentPhone2, studentPhone3, 4);
+    autoMove(studentPhone3, parentName, 4);
+
+    autoMove(parentPhone1, parentPhone2, 3);
+    autoMove(parentPhone2, parentPhone3, 4);
+
+    parentPhone3.addEventListener("input", () => {
+        onlyNumber(parentPhone3);
+    });
+
+    [studentPhone1, studentPhone2, studentPhone3, parentPhone1, parentPhone2, parentPhone3].forEach(input => {
+        input.addEventListener("keydown", (e) => {
+            if (
+                e.key !== "Backspace" &&
+                e.key !== "Tab" &&
+                e.key !== "ArrowLeft" &&
+                e.key !== "ArrowRight" &&
+                e.key !== "Delete" &&
+                !/^[0-9]$/.test(e.key)
+            ) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    form.addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        const sName = studentName.value.trim();
+        const pName = parentName.value.trim();
+
+        if (!isValidName(sName)) {
+            alert("학생 이름은 한글 또는 영문만 입력해주세요.");
+            studentName.focus();
+            return;
+        }
+
+        if (!isValidName(pName)) {
+            alert("보호자 이름은 한글 또는 영문만 입력해주세요.");
+            parentName.focus();
+            return;
+        }
+
+        const s1 = studentPhone1.value;
+        const s2 = studentPhone2.value;
+        const s3 = studentPhone3.value;
+
+        const p1 = parentPhone1.value;
+        const p2 = parentPhone2.value;
+        const p3 = parentPhone3.value;
+
+        if (s1.length !== 3 || s2.length !== 4 || s3.length !== 4) {
+            alert("학생 전화번호를 정확히 입력해주세요.");
+            studentPhone1.focus();
+            return;
+        }
+
+        if (p1.length !== 3 || p2.length !== 4 || p3.length !== 4) {
+            alert("보호자 전화번호를 정확히 입력해주세요.");
+            parentPhone1.focus();
+            return;
+        }
+
+        document.getElementById("student_phone").value = `${s1}-${s2}-${s3}`;
+        document.getElementById("parent_phone").value = `${p1}-${p2}-${p3}`;
+
+        form.submit();
+    });
+</script>
+
+</body>
+</html>

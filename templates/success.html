@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>신청 완료</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #eef2f7;
+            display: flex;
+            justify-content: center;
+            padding-top: 70px;
+        }
+
+        .box {
+            width: 430px;
+            background: white;
+            padding: 35px 30px;
+            border-radius: 18px;
+            text-align: center;
+            box-shadow: 0 6px 25px rgba(0,0,0,0.1);
+        }
+
+        .seat {
+            font-size: 30px;
+            font-weight: bold;
+            color: #2563eb;
+            margin: 24px 0;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <div class="title">신청 완료</div>
+        <p>{{ student_name }}님의 신청이 완료되었습니다.</p>
+        <p>신청 인원: {{ people_count }}명</p>
+
+        <div class="seat">
+            좌석번호: {{ seat_numbers }}
+        </div>
+
+        <p>입장 시 이 화면을 보여주세요.</p>
+    </div>
+</body>
+</html>

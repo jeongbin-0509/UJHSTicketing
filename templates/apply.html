@@ -1,240 +1,668 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
     <title>입시설명회 신청</title>
+
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #eef2f7;
-            display: flex;
-            justify-content: center;
-            padding-top: 50px;
-        }
+      * {
+        box-sizing: border-box;
+      }
 
-        .box {
-            width: 430px;
-            background: white;
-            padding: 30px;
-            border-radius: 18px;
-            box-shadow: 0 6px 25px rgba(0,0,0,0.1);
-        }
+      body {
+        margin: 0;
 
-        h2 {
-            text-align: center;
-            margin-bottom: 8px;
-        }
+        background: #f5f6f8;
 
-        .remain {
-            text-align: center;
-            margin-bottom: 25px;
-            font-weight: bold;
-            color: #2563eb;
-        }
+        font-family: Pretendard, Arial, sans-serif;
 
-        label {
-            display: block;
-            margin-top: 14px;
-            font-weight: bold;
-        }
+        color: #191919;
+      }
 
-        input, select, button {
-            width: 100%;
-            padding: 12px;
-            margin-top: 6px;
-            border: 1px solid #ccc;
-            border-radius: 9px;
-            box-sizing: border-box;
-            font-size: 15px;
-        }
+      .container {
+        max-width: 520px;
 
-        .phone-row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
+        margin: 50px auto;
 
-        .phone-row input {
-            text-align: center;
-        }
+        padding: 0 20px;
+      }
 
-        .phone-row span {
-            margin-top: 6px;
-            font-weight: bold;
-            color: #555;
-        }
+      .box {
+        background: white;
 
-        button {
-            margin-top: 24px;
-            background: #2563eb;
-            color: white;
-            border: none;
-            font-weight: bold;
-            cursor: pointer;
-        }
+        padding: 32px;
 
-        button:hover {
-            background: #1d4ed8;
-        }
+        border-radius: 18px;
 
-        .notice {
-            margin-top: 18px;
-            font-size: 14px;
-            color: #555;
-            line-height: 1.6;
-        }
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.07);
+      }
+
+      h1 {
+        margin-top: 0;
+
+        text-align: center;
+
+        font-size: 26px;
+      }
+
+      .status {
+        display: flex;
+
+        justify-content: space-between;
+
+        margin: 22px 0 28px;
+
+        padding: 16px;
+
+        background: #f8fafc;
+
+        border-radius: 10px;
+
+        font-size: 14px;
+      }
+
+      #timer {
+        color: #dc2626;
+
+        font-weight: 700;
+      }
+
+      .remain {
+        color: #2563eb;
+
+        font-weight: 700;
+      }
+
+      label {
+        display: block;
+
+        margin-top: 18px;
+
+        margin-bottom: 7px;
+
+        font-weight: 700;
+      }
+
+      input,
+      select {
+        width: 100%;
+
+        padding: 13px 14px;
+
+        border: 1px solid #d1d5db;
+
+        border-radius: 9px;
+
+        font-size: 16px;
+
+        outline: none;
+      }
+
+      input:focus,
+      select:focus {
+        border-color: #2563eb;
+      }
+
+      .phone {
+        display: flex;
+
+        align-items: center;
+
+        gap: 7px;
+      }
+
+      .phone input {
+        text-align: center;
+
+        min-width: 0;
+      }
+
+      .phone span {
+        color: #777;
+      }
+
+      .submit-btn {
+        width: 100%;
+
+        margin-top: 30px;
+
+        padding: 15px;
+
+        border: 0;
+
+        border-radius: 10px;
+
+        background: #2563eb;
+
+        color: white;
+
+        font-size: 17px;
+
+        font-weight: 700;
+
+        cursor: pointer;
+      }
+
+      .submit-btn:disabled {
+        background: #94a3b8;
+      }
+
+      .notice {
+        margin-top: 20px;
+
+        color: #666;
+
+        font-size: 13px;
+
+        line-height: 1.7;
+      }
     </style>
-</head>
-<body>
+  </head>
 
-<div class="box">
-    <h2>운정고 설명회 신청</h2>
-    <div class="remain">남은 좌석: {{ remaining }}석</div>
+  <body>
+    <div class="container">
+      <div class="box">
+        <h1>입시설명회 신청</h1>
 
-    <form action="/reserve" method="POST" id="reserve-form">
-        <label>학생 이름</label>
-        <input type="text" name="student_name" id="student_name" required placeholder="예: 홍길동">
+        <div class="status">
+          <div>
+            남은 좌석 :
+            <span class="remain"> {{ remaining }}석 </span>
+          </div>
 
-        <label>학생 전화번호</label>
-        <div class="phone-row">
-            <input type="text" id="student_phone_1" maxlength="3" inputmode="numeric" value="010" required>
-            <span>-</span>
-            <input type="text" id="student_phone_2" maxlength="4" inputmode="numeric" required>
-            <span>-</span>
-            <input type="text" id="student_phone_3" maxlength="4" inputmode="numeric" required>
+          <div>
+            남은 시간 :
+            <span id="timer"> </span>
+          </div>
         </div>
-        <input type="hidden" name="student_phone" id="student_phone">
 
-        <label>보호자 이름</label>
-        <input type="text" name="parent_name" id="parent_name" required placeholder="예: 홍길동">
+        <form id="reserveForm" action="/reserve" method="POST">
+          <label> 학생 이름 </label>
 
-        <label>보호자 전화번호</label>
-        <div class="phone-row">
-            <input type="text" id="parent_phone_1" maxlength="3" inputmode="numeric" value="010" required>
+          <input
+            type="text"
+            id="studentName"
+            name="student_name"
+            autocomplete="name"
+            maxlength="20"
+            placeholder="학생 이름"
+            required
+          />
+
+          <label> 학생 전화번호 </label>
+
+          <div class="phone">
+            <input
+              id="studentPhone1"
+              type="text"
+              value="010"
+              maxlength="3"
+              inputmode="numeric"
+              required
+            />
+
             <span>-</span>
-            <input type="text" id="parent_phone_2" maxlength="4" inputmode="numeric" required>
-            <span>-</span>
-            <input type="text" id="parent_phone_3" maxlength="4" inputmode="numeric" required>
-        </div>
-        <input type="hidden" name="parent_phone" id="parent_phone">
 
-        <label>신청 인원</label>
-        <select name="people_count" required>
+            <input
+              id="studentPhone2"
+              type="text"
+              maxlength="4"
+              inputmode="numeric"
+              required
+            />
+
+            <span>-</span>
+
+            <input
+              id="studentPhone3"
+              type="text"
+              maxlength="4"
+              inputmode="numeric"
+              required
+            />
+          </div>
+
+          <input type="hidden" id="studentPhone" name="student_phone" />
+
+          <label> 보호자 이름 </label>
+
+          <input
+            type="text"
+            id="parentName"
+            name="parent_name"
+            maxlength="20"
+            placeholder="보호자 이름"
+            required
+          />
+
+          <label> 보호자 전화번호 </label>
+
+          <div class="phone">
+            <input
+              id="parentPhone1"
+              type="text"
+              value="010"
+              maxlength="3"
+              inputmode="numeric"
+              required
+            />
+
+            <span>-</span>
+
+            <input
+              id="parentPhone2"
+              type="text"
+              maxlength="4"
+              inputmode="numeric"
+              required
+            />
+
+            <span>-</span>
+
+            <input
+              id="parentPhone3"
+              type="text"
+              maxlength="4"
+              inputmode="numeric"
+              required
+            />
+          </div>
+
+          <input type="hidden" id="parentPhone" name="parent_phone" />
+
+          <label> 신청 인원 </label>
+
+          <select name="people_count" required>
             <option value="1">1명</option>
+
             <option value="2">2명</option>
-        </select>
+          </select>
 
-        <button type="submit">신청하기</button>
-    </form>
+          <button type="submit" id="submitBtn" class="submit-btn">
+            신청 완료
+          </button>
+        </form>
 
-    <div class="notice">
-        ※ 신청 완료 후 좌석번호가 자동 배정됩니다.<br>
-        ※ 같은 학생 전화번호로 중복 신청할 수 없습니다.
+        <div class="notice">
+          ※ 제한 시간이 지나면 자동으로 메인 화면으로 이동합니다.
+
+          <br />
+
+          ※ 학생 전화번호 기준으로 중복 신청이 제한됩니다.
+        </div>
+      </div>
     </div>
-</div>
 
-<script>
-    const form = document.getElementById("reserve-form");
+    <script>
 
-    const studentName = document.getElementById("student_name");
-    const parentName = document.getElementById("parent_name");
+      const form =
+          document.getElementById(
+              "reserveForm"
+          );
 
-    const studentPhone1 = document.getElementById("student_phone_1");
-    const studentPhone2 = document.getElementById("student_phone_2");
-    const studentPhone3 = document.getElementById("student_phone_3");
+      const submitBtn =
+          document.getElementById(
+              "submitBtn"
+          );
 
-    const parentPhone1 = document.getElementById("parent_phone_1");
-    const parentPhone2 = document.getElementById("parent_phone_2");
-    const parentPhone3 = document.getElementById("parent_phone_3");
 
-    function onlyNumber(input) {
-        input.value = input.value.replace(/[^0-9]/g, "");
-    }
+      const studentName =
+          document.getElementById(
+              "studentName"
+          );
 
-    function isValidName(name) {
-        return /^[가-힣a-zA-Z\s]+$/.test(name);
-    }
+      const parentName =
+          document.getElementById(
+              "parentName"
+          );
 
-    function autoMove(currentInput, nextInput, maxLength) {
-        currentInput.addEventListener("input", () => {
-            onlyNumber(currentInput);
 
-            if (currentInput.value.length >= maxLength) {
-                nextInput.focus();
-            }
-        });
-    }
+      const s1 =
+          document.getElementById(
+              "studentPhone1"
+          );
 
-    autoMove(studentPhone1, studentPhone2, 3);
-    autoMove(studentPhone2, studentPhone3, 4);
-    autoMove(studentPhone3, parentName, 4);
+      const s2 =
+          document.getElementById(
+              "studentPhone2"
+          );
 
-    autoMove(parentPhone1, parentPhone2, 3);
-    autoMove(parentPhone2, parentPhone3, 4);
+      const s3 =
+          document.getElementById(
+              "studentPhone3"
+          );
 
-    parentPhone3.addEventListener("input", () => {
-        onlyNumber(parentPhone3);
-    });
 
-    [studentPhone1, studentPhone2, studentPhone3, parentPhone1, parentPhone2, parentPhone3].forEach(input => {
-        input.addEventListener("keydown", (e) => {
-            if (
-                e.key !== "Backspace" &&
-                e.key !== "Tab" &&
-                e.key !== "ArrowLeft" &&
-                e.key !== "ArrowRight" &&
-                e.key !== "Delete" &&
-                !/^[0-9]$/.test(e.key)
-            ) {
-                e.preventDefault();
-            }
-        });
-    });
+      const p1 =
+          document.getElementById(
+              "parentPhone1"
+          );
 
-    form.addEventListener("submit", (e) => {
-        e.preventDefault();
+      const p2 =
+          document.getElementById(
+              "parentPhone2"
+          );
 
-        const sName = studentName.value.trim();
-        const pName = parentName.value.trim();
+      const p3 =
+          document.getElementById(
+              "parentPhone3"
+          );
 
-        if (!isValidName(sName)) {
-            alert("학생 이름은 한글 또는 영문만 입력해주세요.");
-            studentName.focus();
-            return;
-        }
 
-        if (!isValidName(pName)) {
-            alert("보호자 이름은 한글 또는 영문만 입력해주세요.");
-            parentName.focus();
-            return;
-        }
+      function numbersOnly(
+          input
+      ) {
 
-        const s1 = studentPhone1.value;
-        const s2 = studentPhone2.value;
-        const s3 = studentPhone3.value;
+          input.value =
+              input.value.replace(
+                  /[^0-9]/g,
+                  ""
+              );
+      }
 
-        const p1 = parentPhone1.value;
-        const p2 = parentPhone2.value;
-        const p3 = parentPhone3.value;
 
-        if (s1.length !== 3 || s2.length !== 4 || s3.length !== 4) {
-            alert("학생 전화번호를 정확히 입력해주세요.");
-            studentPhone1.focus();
-            return;
-        }
+      function autoMove(
+          current,
+          next,
+          length
+      ) {
 
-        if (p1.length !== 3 || p2.length !== 4 || p3.length !== 4) {
-            alert("보호자 전화번호를 정확히 입력해주세요.");
-            parentPhone1.focus();
-            return;
-        }
+          current.addEventListener(
+              "input",
+              () => {
 
-        document.getElementById("student_phone").value = `${s1}-${s2}-${s3}`;
-        document.getElementById("parent_phone").value = `${p1}-${p2}-${p3}`;
+                  numbersOnly(
+                      current
+                  );
 
-        form.submit();
-    });
-</script>
+                  if (
+                      current.value.length
+                      === length
+                  ) {
 
-</body>
+                      next.focus();
+                  }
+              }
+          );
+      }
+
+
+      autoMove(
+          s1,
+          s2,
+          3
+      );
+
+      autoMove(
+          s2,
+          s3,
+          4
+      );
+
+      // 학생 전화번호 마지막 →
+      // 보호자 이름
+      autoMove(
+          s3,
+          parentName,
+          4
+      );
+
+
+      autoMove(
+          p1,
+          p2,
+          3
+      );
+
+      autoMove(
+          p2,
+          p3,
+          4
+      );
+
+
+      p3.addEventListener(
+          "input",
+          () => {
+
+              numbersOnly(p3);
+          }
+      );
+
+
+      function validName(
+          value
+      ) {
+
+          return /^[가-힣a-zA-Z\s]{2,20}$/
+              .test(
+                  value.trim()
+              );
+      }
+
+
+      form.addEventListener(
+          "submit",
+          event => {
+
+              event.preventDefault();
+
+
+              if (
+                  !validName(
+                      studentName.value
+                  )
+              ) {
+
+                  alert(
+                      "학생 이름을 정확히 입력해주세요."
+                  );
+
+                  studentName.focus();
+
+                  return;
+              }
+
+
+              if (
+                  !validName(
+                      parentName.value
+                  )
+              ) {
+
+                  alert(
+                      "보호자 이름을 정확히 입력해주세요."
+                  );
+
+                  parentName.focus();
+
+                  return;
+              }
+
+
+              if (
+                  s1.value.length !== 3 ||
+                  s2.value.length < 3 ||
+                  s2.value.length > 4 ||
+                  s3.value.length !== 4
+              ) {
+
+                  alert(
+                      "학생 전화번호를 정확히 입력해주세요."
+                  );
+
+                  s1.focus();
+
+                  return;
+              }
+
+
+              if (
+                  p1.value.length !== 3 ||
+                  p2.value.length < 3 ||
+                  p2.value.length > 4 ||
+                  p3.value.length !== 4
+              ) {
+
+                  alert(
+                      "보호자 전화번호를 정확히 입력해주세요."
+                  );
+
+                  p1.focus();
+
+                  return;
+              }
+
+
+              document
+                  .getElementById(
+                      "studentPhone"
+                  )
+                  .value =
+                      `${s1.value}-${s2.value}-${s3.value}`;
+
+
+              document
+                  .getElementById(
+                      "parentPhone"
+                  )
+                  .value =
+                      `${p1.value}-${p2.value}-${p3.value}`;
+
+
+              submitBtn.disabled =
+                  true;
+
+              submitBtn.textContent =
+                  "신청 처리 중...";
+
+
+              form.submit();
+          }
+      );
+
+
+      // =============================
+      // 타이머
+      // =============================
+
+      let remainingTime =
+          {{ remaining_time }};
+
+
+      function updateTimer() {
+
+          const minutes =
+              Math.floor(
+                  remainingTime / 60
+              );
+
+          const seconds =
+              remainingTime % 60;
+
+
+          document
+              .getElementById(
+                  "timer"
+              )
+              .textContent =
+                  `${minutes}:${String(seconds).padStart(2, "0")}`;
+
+
+          if (
+              remainingTime <= 0
+          ) {
+
+              expire();
+
+              return;
+          }
+
+
+          remainingTime--;
+      }
+
+
+      async function expire() {
+
+          try {
+
+              await fetch(
+                  "/leave",
+                  {
+                      method: "POST"
+                  }
+              );
+
+          } catch (e) {
+
+              console.error(e);
+          }
+
+          location.replace("/");
+      }
+
+
+      updateTimer();
+
+      setInterval(
+          updateTimer,
+          1000
+      );
+
+
+      // =============================
+      // Heartbeat
+      // =============================
+
+      async function heartbeat() {
+
+          try {
+
+              const response =
+                  await fetch(
+                      "/heartbeat",
+                      {
+                          method: "POST"
+                      }
+                  );
+
+
+              const data =
+                  await response.json();
+
+
+              if (
+                  !data.ok &&
+                  data.expired
+              ) {
+
+                  location.replace(
+                      "/"
+                  );
+              }
+
+          }
+
+          catch (error) {
+
+              console.error(
+                  "heartbeat 오류",
+                  error
+              );
+          }
+      }
+
+
+      heartbeat();
+
+      setInterval(
+          heartbeat,
+          10000
+      );
+    </script>
+  </body>
 </html>

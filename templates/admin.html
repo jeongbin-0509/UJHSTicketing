@@ -1,100 +1,195 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <title>관리자 페이지</title>
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>관리자</title>
+
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 30px;
-            background: #f4f6f8;
-        }
+      * {
+        box-sizing: border-box;
+      }
 
-        .summary {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
+      body {
+        margin: 0;
 
-        .card {
-            background: white;
-            padding: 18px;
-            border-radius: 12px;
-            min-width: 150px;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-        }
+        background: #f5f6f8;
 
-        .card strong {
-            font-size: 24px;
-            color: #2563eb;
-        }
+        font-family: Arial, sans-serif;
 
-        a {
-            display: inline-block;
-            margin-bottom: 20px;
-            padding: 10px 14px;
-            background: #16a34a;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-        }
+        padding: 30px;
+      }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-        }
+      h1 {
+        margin-top: 0;
+      }
 
-        th, td {
-            border: 1px solid #ddd;
-            padding: 10px;
-            text-align: center;
-        }
+      .cards {
+        display: flex;
 
-        th {
-            background: #2563eb;
-            color: white;
-        }
+        flex-wrap: wrap;
+
+        gap: 15px;
+
+        margin: 25px 0;
+      }
+
+      .card {
+        background: white;
+
+        padding: 20px;
+
+        border-radius: 12px;
+
+        min-width: 160px;
+      }
+
+      .card strong {
+        display: block;
+
+        margin-top: 7px;
+
+        font-size: 25px;
+
+        color: #2563eb;
+      }
+
+      .actions {
+        display: flex;
+
+        gap: 10px;
+
+        margin-bottom: 25px;
+      }
+
+      .button {
+        display: inline-block;
+
+        padding: 11px 16px;
+
+        border: 0;
+
+        border-radius: 8px;
+
+        background: #2563eb;
+
+        color: white;
+
+        text-decoration: none;
+
+        cursor: pointer;
+      }
+
+      .danger {
+        background: #dc2626;
+      }
+
+      table {
+        width: 100%;
+
+        background: white;
+
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 11px;
+
+        border: 1px solid #ddd;
+
+        text-align: center;
+      }
+
+      th {
+        background: #1e293b;
+
+        color: white;
+      }
     </style>
-</head>
-<body>
-    <h2>입시설명회 신청자 목록</h2>
+  </head>
 
-    <div class="summary">
-        <div class="card">전체 좌석<br><strong>{{ total_seats }}</strong></div>
-        <div class="card">사용 좌석<br><strong>{{ used_seats }}</strong></div>
-        <div class="card">남은 좌석<br><strong>{{ remaining }}</strong></div>
+  <body>
+    <h1>입시설명회 관리자</h1>
+
+    <div class="cards">
+      <div class="card">
+        전체 좌석
+        <strong> {{ total_seats }} </strong>
+      </div>
+
+      <div class="card">
+        사용 좌석
+        <strong> {{ used_seats }} </strong>
+      </div>
+
+      <div class="card">
+        남은 좌석
+        <strong> {{ remaining }} </strong>
+      </div>
+
+      <div class="card">
+        신청창 접속자
+        <strong> {{ active_count }} / {{ max_active }} </strong>
+      </div>
+
+      <div class="card">
+        대기자
+        <strong> {{ waiting_count }} </strong>
+      </div>
     </div>
 
-    <a href="/admin/excel">엑셀 다운로드</a>
+    <div class="actions">
+      <a class="button" href="/admin/excel"> 엑셀 다운로드 </a>
+
+      <form
+        action="/admin/reset-queue"
+        method="POST"
+        onsubmit="return confirm('대기열을 초기화할까요?');"
+      >
+        <button class="button danger" type="submit">대기열 초기화</button>
+      </form>
+    </div>
 
     <table>
-        <thead>
-            <tr>
-                <th>번호</th>
-                <th>학생 이름</th>
-                <th>학생 전화번호</th>
-                <th>보호자 이름</th>
-                <th>보호자 전화번호</th>
-                <th>신청 인원</th>
-                <th>배정 좌석</th>
-                <th>신청 시간</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for r in reservations %}
-            <tr>
-                <td>{{ r.id }}</td>
-                <td>{{ r.student_name }}</td>
-                <td>{{ r.student_phone }}</td>
-                <td>{{ r.parent_name }}</td>
-                <td>{{ r.parent_phone }}</td>
-                <td>{{ r.people_count }}</td>
-                <td>{{ r.seat_numbers }}</td>
-                <td>{{ r.created_at }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
+      <thead>
+        <tr>
+          <th>번호</th>
+          <th>학생 이름</th>
+          <th>학생 전화번호</th>
+          <th>보호자 이름</th>
+          <th>보호자 전화번호</th>
+          <th>인원</th>
+          <th>좌석</th>
+          <th>신청 시간</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for r in reservations %}
+
+        <tr>
+          <td>{{ r.id }}</td>
+
+          <td>{{ r.student_name }}</td>
+
+          <td>{{ r.student_phone }}</td>
+
+          <td>{{ r.parent_name }}</td>
+
+          <td>{{ r.parent_phone }}</td>
+
+          <td>{{ r.people_count }}</td>
+
+          <td>{{ r.seat_numbers }}</td>
+
+          <td>{{ r.created_at }}</td>
+        </tr>
+
+        {% endfor %}
+      </tbody>
     </table>
-</body>
+  </body>
 </html>

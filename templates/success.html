@@ -1,50 +1,159 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
     <title>신청 완료</title>
+
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #eef2f7;
-            display: flex;
-            justify-content: center;
-            padding-top: 70px;
-        }
+      * {
+        box-sizing: border-box;
+      }
 
-        .box {
-            width: 430px;
-            background: white;
-            padding: 35px 30px;
-            border-radius: 18px;
-            text-align: center;
-            box-shadow: 0 6px 25px rgba(0,0,0,0.1);
-        }
+      body {
+        margin: 0;
 
-        .seat {
-            font-size: 30px;
-            font-weight: bold;
-            color: #2563eb;
-            margin: 24px 0;
-        }
+        min-height: 100vh;
 
-        .title {
-            font-size: 24px;
-            font-weight: bold;
-        }
+        display: flex;
+
+        align-items: center;
+
+        justify-content: center;
+
+        padding: 20px;
+
+        background: #f5f6f8;
+
+        font-family: Pretendard, Arial, sans-serif;
+      }
+
+      .box {
+        width: 430px;
+
+        background: white;
+
+        padding: 42px 32px;
+
+        border-radius: 18px;
+
+        text-align: center;
+
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+      }
+
+      .check {
+        width: 68px;
+        height: 68px;
+
+        margin: 0 auto 22px;
+
+        border-radius: 50%;
+
+        background: #2563eb;
+
+        color: white;
+
+        display: flex;
+
+        justify-content: center;
+
+        align-items: center;
+
+        font-size: 34px;
+
+        font-weight: 700;
+      }
+
+      h1 {
+        font-size: 25px;
+
+        margin-bottom: 15px;
+      }
+
+      .description {
+        color: #555;
+
+        line-height: 1.8;
+      }
+
+      .seat {
+        margin: 28px 0;
+
+        padding: 24px;
+
+        background: #eff6ff;
+
+        border-radius: 12px;
+      }
+
+      .seat-title {
+        font-size: 14px;
+
+        color: #666;
+
+        margin-bottom: 8px;
+      }
+
+      .seat-number {
+        color: #2563eb;
+
+        font-size: 30px;
+
+        font-weight: 800;
+      }
+
+      button {
+        width: 100%;
+
+        border: 0;
+
+        padding: 15px;
+
+        border-radius: 10px;
+
+        background: #2563eb;
+
+        color: white;
+
+        font-size: 17px;
+
+        font-weight: 700;
+
+        cursor: pointer;
+      }
     </style>
-</head>
-<body>
+  </head>
+
+  <body>
     <div class="box">
-        <div class="title">신청 완료</div>
-        <p>{{ student_name }}님의 신청이 완료되었습니다.</p>
-        <p>신청 인원: {{ people_count }}명</p>
+      <div class="check">✓</div>
 
-        <div class="seat">
-            좌석번호: {{ seat_numbers }}
-        </div>
+      <h1>신청이 완료되었습니다</h1>
 
-        <p>입장 시 이 화면을 보여주세요.</p>
+      <div class="description">
+        {{ student_name }}님의 신청이 완료되었습니다.
+
+        <br />
+
+        신청 인원 : {{ people_count }}명
+      </div>
+
+      <div class="seat">
+        <div class="seat-title">배정 좌석</div>
+
+        <div class="seat-number">{{ seat_numbers }}</div>
+      </div>
+
+      <button onclick="exitPage()">나가기</button>
     </div>
-</body>
+
+    <script>
+      function exitPage() {
+        location.replace("/");
+      }
+    </script>
+  </body>
 </html>

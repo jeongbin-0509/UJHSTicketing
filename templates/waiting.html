@@ -1,104 +1,178 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <title>입장 대기</title>
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>예매 대기</title>
+
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #eef2f7;
-            display: flex;
-            justify-content: center;
-            padding-top: 80px;
-        }
+      * {
+        box-sizing: border-box;
+      }
 
-        .box {
-            width: 430px;
-            background: white;
-            padding: 35px 30px;
-            border-radius: 18px;
-            text-align: center;
-            box-shadow: 0 6px 25px rgba(0,0,0,0.1);
-        }
+      body {
+        margin: 0;
 
-        .title {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
+        background: #f5f6f8;
 
-        .loader {
-            width: 50px;
-            height: 50px;
-            border: 5px solid #ddd;
-            border-top: 5px solid #2563eb;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 24px auto;
-        }
+        font-family: Pretendard, Arial, sans-serif;
 
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
+        min-height: 100vh;
 
-        .info {
-            margin-top: 18px;
-            font-size: 18px;
-            font-weight: bold;
-            color: #2563eb;
-        }
+        display: flex;
+        justify-content: center;
+        align-items: center;
 
-        .desc {
-            color: #555;
-            line-height: 1.6;
-            margin-top: 12px;
+        padding: 20px;
+      }
+
+      .box {
+        width: 440px;
+
+        background: white;
+
+        padding: 42px 32px;
+
+        border-radius: 18px;
+
+        text-align: center;
+
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+      }
+
+      h1 {
+        font-size: 25px;
+        margin: 0;
+      }
+
+      .loader {
+        width: 55px;
+        height: 55px;
+
+        border: 6px solid #e5e7eb;
+
+        border-top-color: #2563eb;
+
+        border-radius: 50%;
+
+        margin: 30px auto;
+
+        animation: spin 0.9s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
         }
+      }
+
+      .position {
+        font-size: 19px;
+
+        color: #2563eb;
+
+        font-weight: 700;
+
+        margin-top: 15px;
+      }
+
+      .queue-no {
+        margin-top: 10px;
+
+        color: #555;
+      }
+
+      .description {
+        margin-top: 25px;
+
+        color: #666;
+
+        line-height: 1.7;
+
+        font-size: 14px;
+      }
     </style>
-</head>
-<body>
+  </head>
+
+  <body>
     <div class="box">
-        <div class="title">입장 대기 중입니다</div>
-        <div class="loader"></div>
+      <h1>예매 대기 중입니다</h1>
 
-        <div class="desc">
-            현재 접속자가 많아 순서대로 입장하고 있습니다.<br>
-            새로고침하지 말고 기다려 주세요.
-        </div>
+      <div class="loader"></div>
 
-        <div class="info" id="queueNo">내 대기번호: 계산 중...</div>
-        <div class="info" id="waitingCount">앞 대기자 수: 계산 중...</div>
+      <div class="position" id="position">대기 순서를 확인하고 있습니다.</div>
+
+      <div class="queue-no" id="queueNo"></div>
+
+      <div class="description">
+        접속 순서대로 예매 페이지에 입장합니다.
+
+        <br />
+
+        이 페이지를 닫지 말고 잠시 기다려 주세요.
+      </div>
     </div>
 
     <script>
-    let timerId = null;
-    let isMoving = false;
+      let checking = false;
 
-    async function checkQueue() {
-        if (isMoving) return;
+      let moving = false;
 
-        const res = await fetch("/queue/status");
-        const data = await res.json();
+      async function checkQueue() {
+        if (checking || moving) {
+          return;
+        }
 
-        document.getElementById("queueNo").innerText =
-            `내 대기번호: ${data.queue_no}번`;
+        checking = true;
 
-        document.getElementById("waitingCount").innerText =
-            `앞 대기자 수: ${data.waiting_count}명`;
+        try {
+          const response = await fetch("/queue/status", {
+            cache: "no-store",
+          });
 
-        if (data.can_enter) {
-            isMoving = true;
+          if (response.status === 401) {
+            location.replace("/");
+            return;
+          }
 
-            if (timerId) {
-                clearInterval(timerId);
-            }
+          const data = await response.json();
+
+          if (!data.valid) {
+            location.replace("/");
+            return;
+          }
+
+          document.getElementById("queueNo").textContent =
+            `내 대기번호 : ${data.queue_no}번`;
+
+          if (data.can_enter) {
+            moving = true;
+
+            document.getElementById("position").textContent =
+              "입장 중입니다...";
 
             location.replace("/apply");
-        }
-    }
 
-    timerId = setInterval(checkQueue, 1000);
-    checkQueue();
-</script>
-</body>
+            return;
+          }
+
+          document.getElementById("position").textContent =
+            `앞에 ${data.waiting_count}명이 대기 중입니다.`;
+        } catch (error) {
+          console.error(error);
+
+          document.getElementById("position").textContent =
+            "서버에 다시 연결하고 있습니다...";
+        } finally {
+          checking = false;
+        }
+      }
+
+      checkQueue();
+
+      setInterval(checkQueue, 2000);
+    </script>
+  </body>
 </html>

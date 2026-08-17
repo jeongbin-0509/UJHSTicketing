@@ -14,16 +14,15 @@
 
       body {
         margin: 0;
-
-        background: #f5f6f8;
-
-        font-family: Pretendard, Arial, sans-serif;
-
         min-height: 100vh;
 
         display: flex;
         justify-content: center;
         align-items: center;
+
+        background: #f5f6f8;
+
+        font-family: Arial, sans-serif;
 
         padding: 20px;
       }
@@ -33,31 +32,26 @@
 
         background: white;
 
-        padding: 42px 32px;
-
         border-radius: 18px;
+
+        padding: 42px 32px;
 
         text-align: center;
 
         box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
       }
 
-      h1 {
-        font-size: 25px;
-        margin: 0;
-      }
-
       .loader {
         width: 55px;
         height: 55px;
+
+        margin: 30px auto;
 
         border: 6px solid #e5e7eb;
 
         border-top-color: #2563eb;
 
         border-radius: 50%;
-
-        margin: 30px auto;
 
         animation: spin 0.9s linear infinite;
       }
@@ -69,29 +63,26 @@
       }
 
       .position {
-        font-size: 19px;
-
         color: #2563eb;
 
-        font-weight: 700;
-
-        margin-top: 15px;
+        font-size: 20px;
+        font-weight: bold;
       }
 
-      .queue-no {
-        margin-top: 10px;
+      .number {
+        margin-top: 12px;
 
         color: #555;
       }
 
       .description {
-        margin-top: 25px;
+        margin-top: 28px;
 
         color: #666;
 
-        line-height: 1.7;
-
         font-size: 14px;
+
+        line-height: 1.7;
       }
     </style>
   </head>
@@ -102,24 +93,28 @@
 
       <div class="loader"></div>
 
-      <div class="position" id="position">대기 순서를 확인하고 있습니다.</div>
+      <div id="position" class="position">대기 순서를 확인하고 있습니다.</div>
 
-      <div class="queue-no" id="queueNo"></div>
+      <div id="queueNumber" class="number"></div>
 
       <div class="description">
         접속 순서대로 예매 페이지에 입장합니다.
 
         <br />
 
-        이 페이지를 닫지 말고 잠시 기다려 주세요.
+        이 페이지를 닫지 말고 기다려 주세요.
       </div>
     </div>
 
     <script>
       let checking = false;
-
       let moving = false;
 
+      /*
+    처음에는 바로 확인.
+
+    이후에는 5초 간격.
+*/
       async function checkQueue() {
         if (checking || moving) {
           return;
@@ -134,6 +129,7 @@
 
           if (response.status === 401) {
             location.replace("/");
+
             return;
           }
 
@@ -141,17 +137,18 @@
 
           if (!data.valid) {
             location.replace("/");
+
             return;
           }
 
-          document.getElementById("queueNo").textContent =
-            `내 대기번호 : ${data.queue_no}번`;
+          document.getElementById("queueNumber").textContent =
+            `대기번호 ${data.queue_no}번`;
 
           if (data.can_enter) {
             moving = true;
 
             document.getElementById("position").textContent =
-              "입장 중입니다...";
+              "예매 페이지로 이동합니다.";
 
             location.replace("/apply");
 
@@ -159,12 +156,12 @@
           }
 
           document.getElementById("position").textContent =
-            `앞에 ${data.waiting_count}명이 대기 중입니다.`;
+            `앞에 ${data.waiting_count}명이 있습니다.`;
         } catch (error) {
           console.error(error);
 
           document.getElementById("position").textContent =
-            "서버에 다시 연결하고 있습니다...";
+            "서버에 다시 연결하고 있습니다.";
         } finally {
           checking = false;
         }
@@ -172,7 +169,7 @@
 
       checkQueue();
 
-      setInterval(checkQueue, 2000);
+      setInterval(checkQueue, 5000);
     </script>
   </body>
 </html>

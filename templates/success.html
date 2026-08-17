@@ -18,24 +18,22 @@
         min-height: 100vh;
 
         display: flex;
-
         align-items: center;
-
         justify-content: center;
 
         padding: 20px;
 
         background: #f5f6f8;
 
-        font-family: Pretendard, Arial, sans-serif;
+        font-family: Arial, sans-serif;
       }
 
       .box {
         width: 430px;
 
-        background: white;
-
         padding: 42px 32px;
+
+        background: white;
 
         border-radius: 18px;
 
@@ -52,36 +50,18 @@
 
         border-radius: 50%;
 
-        background: #2563eb;
-
-        color: white;
-
         display: flex;
-
+        align-items: center;
         justify-content: center;
 
-        align-items: center;
+        background: #2563eb;
+        color: white;
 
         font-size: 34px;
-
-        font-weight: 700;
-      }
-
-      h1 {
-        font-size: 25px;
-
-        margin-bottom: 15px;
-      }
-
-      .description {
-        color: #555;
-
-        line-height: 1.8;
       }
 
       .seat {
         margin: 28px 0;
-
         padding: 24px;
 
         background: #eff6ff;
@@ -89,38 +69,29 @@
         border-radius: 12px;
       }
 
-      .seat-title {
-        font-size: 14px;
-
-        color: #666;
-
-        margin-bottom: 8px;
-      }
-
       .seat-number {
+        margin-top: 8px;
+
         color: #2563eb;
 
         font-size: 30px;
-
-        font-weight: 800;
+        font-weight: bold;
       }
 
       button {
         width: 100%;
 
-        border: 0;
-
         padding: 15px;
+
+        border: 0;
 
         border-radius: 10px;
 
         background: #2563eb;
-
         color: white;
 
         font-size: 17px;
-
-        font-weight: 700;
+        font-weight: bold;
 
         cursor: pointer;
       }
@@ -131,18 +102,14 @@
     <div class="box">
       <div class="check">✓</div>
 
-      <h1>신청이 완료되었습니다</h1>
+      <h1>신청 완료</h1>
 
-      <div class="description">
-        {{ student_name }}님의 신청이 완료되었습니다.
+      <p>{{ student_name }}님의 신청이 완료되었습니다.</p>
 
-        <br />
-
-        신청 인원 : {{ people_count }}명
-      </div>
+      <p>신청 인원 : {{ people_count }}명</p>
 
       <div class="seat">
-        <div class="seat-title">배정 좌석</div>
+        <div>배정 좌석</div>
 
         <div class="seat-number">{{ seat_numbers }}</div>
       </div>

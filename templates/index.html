@@ -14,17 +14,14 @@
 
       body {
         margin: 0;
-        font-family: Pretendard, Arial, sans-serif;
-
+        font-family: Arial, sans-serif;
         background: #f5f6f8;
         color: #191919;
       }
 
       header {
         height: 72px;
-
         background: white;
-
         border-bottom: 1px solid #e5e7eb;
 
         display: flex;
@@ -33,22 +30,18 @@
         padding: 0 40px;
 
         font-size: 20px;
-        font-weight: 700;
+        font-weight: bold;
       }
 
       .container {
         max-width: 920px;
-
         margin: 60px auto;
-
         padding: 0 20px;
       }
 
       .card {
         background: white;
-
         border-radius: 18px;
-
         overflow: hidden;
 
         box-shadow: 0 8px 30px rgba(0, 0, 0, 0.07);
@@ -60,24 +53,17 @@
 
       .tag {
         display: inline-block;
-
         color: #2563eb;
-
-        font-size: 14px;
-        font-weight: 700;
-
+        font-weight: bold;
         margin-bottom: 12px;
       }
 
       h1 {
         margin: 0 0 24px;
-
-        font-size: 30px;
       }
 
       .info {
         color: #555;
-
         line-height: 1.9;
       }
 
@@ -91,33 +77,24 @@
         justify-content: space-between;
       }
 
-      .remaining {
-        font-size: 16px;
-      }
-
       .remaining strong {
         color: #2563eb;
-        font-size: 20px;
+        font-size: 22px;
       }
 
       button {
         padding: 15px 36px;
 
         border: 0;
-
         border-radius: 10px;
 
         background: #2563eb;
         color: white;
 
         font-size: 17px;
-        font-weight: 700;
+        font-weight: bold;
 
         cursor: pointer;
-      }
-
-      button:hover {
-        background: #1d4ed8;
       }
 
       button:disabled {
@@ -126,16 +103,14 @@
       }
 
       .notice {
-        background: white;
-
         margin-top: 22px;
-
         padding: 25px 30px;
+
+        background: white;
 
         border-radius: 14px;
 
         color: #555;
-
         line-height: 1.9;
       }
 
@@ -148,17 +123,9 @@
           margin-top: 30px;
         }
 
-        .top {
-          padding: 28px;
-        }
-
         .bottom {
-          padding: 24px 28px;
-
           flex-direction: column;
-
           align-items: stretch;
-
           gap: 20px;
         }
 
@@ -189,9 +156,7 @@
         <div class="bottom">
           <div class="remaining">
             남은 좌석
-
             <strong> {{ remaining }} </strong>
-
             석
           </div>
 
@@ -212,19 +177,10 @@
 
         <br /><br />
 
-        · 예매하기 버튼을 누르면 대기열에 입장합니다.
-
-        <br />
-
-        · 동시에 최대 30명까지 신청 페이지에 입장합니다.
-
-        <br />
-
-        · 신청 페이지 입장 후 제한 시간 내 신청을 완료해야 합니다.
-
-        <br />
-
-        · 신청 완료 시 좌석이 자동 배정됩니다.
+        · 예매하기 버튼을 누르면 대기열에 입장합니다.<br />
+        · 접속 인원이 많으면 순서대로 입장합니다.<br />
+        · 신청 페이지에서는 제한 시간 내 신청해야 합니다.<br />
+        · 신청이 완료되면 좌석이 자동 배정됩니다.
       </section>
     </main>
 
@@ -235,7 +191,7 @@
         button.addEventListener("click", () => {
           button.disabled = true;
 
-          button.textContent = "예매창 접속 중...";
+          button.textContent = "접속 중...";
 
           location.href = "/enter";
         });

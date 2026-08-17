@@ -8,7 +8,6 @@ from io import BytesIO
 import pandas as pd
 import psycopg2
 import psycopg2.extras
-
 from dotenv import load_dotenv
 from flask import (
     Flask,
@@ -20,35 +19,31 @@ from flask import (
     send_file,
     Response,
 )
-
 from upstash_redis import Redis
 
 
 # =========================================================
-# 환경변수
+# CONFIG
 # =========================================================
 
 load_dotenv()
 
 app = Flask(__name__)
 
-app.secret_key = os.getenv(
-    "SECRET_KEY",
-    "change-this-secret-key"
-)
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY가 없습니다.")
+
+app.secret_key = SECRET_KEY
 
 SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
 
-MAX_ACTIVE = int(
-    os.getenv("MAX_ACTIVE", 30)
-)
+MAX_ACTIVE = int(os.getenv("MAX_ACTIVE", 30))
 
+# 신청창을 잡고 있을 수 있는 시간
 APPLY_TIME_LIMIT = int(
     os.getenv("APPLY_TIME_LIMIT", 180)
-)
-
-HEARTBEAT_TIMEOUT = int(
-    os.getenv("HEARTBEAT_TIMEOUT", 30)
 )
 
 ADMIN_USERNAME = os.getenv(
@@ -58,81 +53,77 @@ ADMIN_USERNAME = os.getenv(
 
 ADMIN_PASSWORD = os.getenv(
     "ADMIN_PASSWORD",
-    "admin1234"
+    "change-me"
 )
 
 
 # =========================================================
-# Redis
+# REDIS
 # =========================================================
 
 redis = Redis(
     url=os.getenv("UPSTASH_REDIS_REST_URL"),
-    token=os.getenv("UPSTASH_REDIS_REST_TOKEN")
+    token=os.getenv("UPSTASH_REDIS_REST_TOKEN"),
 )
 
 
+WAITING_KEY = "ticket:waiting"
+ACTIVE_KEY = "ticket:active"
+LAST_NUMBER_KEY = "ticket:last_number"
+LOCK_KEY = "ticket:admit_lock"
+
+
 # =========================================================
-# PostgreSQL
+# DATABASE
 # =========================================================
 
 def get_db():
 
     if not SUPABASE_DB_URL:
         raise RuntimeError(
-            "SUPABASE_DB_URL이 설정되어 있지 않습니다."
+            "SUPABASE_DB_URL이 없습니다."
         )
 
     return psycopg2.connect(
         SUPABASE_DB_URL,
-        cursor_factory=psycopg2.extras.RealDictCursor,
-        connect_timeout=10
+        cursor_factory=
+            psycopg2.extras.RealDictCursor,
+        connect_timeout=10,
     )
 
 
 # =========================================================
-# 관리자 인증
+# ADMIN
 # =========================================================
 
-def check_admin(username, password):
+def admin_required(func):
 
-    return (
-        username == ADMIN_USERNAME
-        and password == ADMIN_PASSWORD
-    )
-
-
-def admin_required(function):
-
-    @wraps(function)
-    def decorated(*args, **kwargs):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
 
         auth = request.authorization
 
         if (
             not auth
-            or not check_admin(
-                auth.username,
-                auth.password
-            )
+            or auth.username != ADMIN_USERNAME
+            or auth.password != ADMIN_PASSWORD
         ):
-
             return Response(
                 "관리자 인증이 필요합니다.",
                 401,
                 {
                     "WWW-Authenticate":
                     'Basic realm="Admin"'
-                }
+                },
             )
 
-        return function(*args, **kwargs)
+        return func(*args, **kwargs)
 
-    return decorated
+    return wrapper
 
 
 # =========================================================
-# 좌석
+# SEATS
 # =========================================================
 
 def get_seat_data():
@@ -169,28 +160,57 @@ def get_remaining_seats():
         data["total_seats"]
         - data["next_seat"]
         + 1,
-        0
+        0,
     )
 
 
 # =========================================================
-# Redis Queue 유틸
+# QUEUE
 # =========================================================
 
-def acquire_queue_lock():
+def now():
+    return int(time.time())
+
+
+def cleanup_expired_active():
 
     """
-    여러 요청이 동시에 대기자를 입장시키는 것을
-    최대한 방지하기 위한 Redis lock.
+    신청 제한시간이 끝난 사용자들을
+    한 번에 active에서 제거한다.
     """
+
+    redis.zremrangebyscore(
+        ACTIVE_KEY,
+        0,
+        now(),
+    )
+
+
+def active_count():
+
+    cleanup_expired_active()
+
+    return int(
+        redis.zcard(ACTIVE_KEY) or 0
+    )
+
+
+def waiting_count():
+
+    return int(
+        redis.zcard(WAITING_KEY) or 0
+    )
+
+
+def acquire_lock():
 
     lock_id = str(uuid.uuid4())
 
     success = redis.set(
-        "queue:admit_lock",
+        LOCK_KEY,
         lock_id,
         nx=True,
-        ex=5
+        ex=3,
     )
 
     if success:
@@ -199,390 +219,289 @@ def acquire_queue_lock():
     return None
 
 
-def release_queue_lock(lock_id):
+def release_lock(lock_id):
 
     if not lock_id:
         return
 
     current = redis.get(
-        "queue:admit_lock"
+        LOCK_KEY
     )
 
     if current == lock_id:
         redis.delete(
-            "queue:admit_lock"
+            LOCK_KEY
         )
 
 
-def get_active_count():
-
-    count = redis.scard(
-        "queue:active"
-    )
-
-    return int(count or 0)
-
-
-def cleanup_active_users():
+def admit_users():
 
     """
-    신청 페이지에서 heartbeat가 끊겼거나
-    제한 시간이 지난 사용자를 제거한다.
-    """
-
-    tokens = redis.smembers(
-        "queue:active"
-    ) or []
-
-    now = int(time.time())
-
-    for token in tokens:
-
-        entry_allowed = redis.get(
-            f"entry:{token}"
-        )
-
-        heartbeat = redis.get(
-            f"heartbeat:{token}"
-        )
-
-        entered_at = redis.get(
-            f"entered_at:{token}"
-        )
-
-        expired = False
-
-        if entry_allowed is None:
-            expired = True
-
-        elif heartbeat is None:
-            expired = True
-
-        elif entered_at:
-
-            elapsed = (
-                now - int(entered_at)
-            )
-
-            if elapsed >= APPLY_TIME_LIMIT:
-                expired = True
-
-        if expired:
-
-            redis.srem(
-                "queue:active",
-                token
-            )
-
-            redis.delete(
-                f"entry:{token}"
-            )
-
-            redis.delete(
-                f"heartbeat:{token}"
-            )
-
-            redis.delete(
-                f"entered_at:{token}"
-            )
-
-
-def try_admit_users():
-
-    """
-    신청 페이지의 빈 슬롯만큼
+    빈 신청 슬롯만큼
     대기열 앞사람을 입장시킨다.
     """
 
-    lock_id = acquire_queue_lock()
+    lock_id = acquire_lock()
 
     if not lock_id:
         return
 
     try:
 
-        cleanup_active_users()
+        cleanup_expired_active()
 
-        while True:
+        count = int(
+            redis.zcard(
+                ACTIVE_KEY
+            ) or 0
+        )
 
-            active_count = get_active_count()
+        slots = MAX_ACTIVE - count
 
-            if active_count >= MAX_ACTIVE:
-                break
+        if slots <= 0:
+            return
 
-            token = redis.lpop(
-                "queue:waiting"
+        # 대기열 앞에서 slots명
+        users = redis.zrange(
+            WAITING_KEY,
+            0,
+            slots - 1,
+        ) or []
+
+        if not users:
+            return
+
+        expire_at = (
+            now()
+            + APPLY_TIME_LIMIT
+        )
+
+        for token in users:
+
+            redis.zrem(
+                WAITING_KEY,
+                token,
             )
 
-            if not token:
-                break
-
-            # 대기 페이지에서 이미 사라진 사용자면 건너뜀
-            waiting_alive = redis.get(
-                f"waiting_alive:{token}"
-            )
-
-            if waiting_alive is None:
-                continue
-
-            now = int(time.time())
-
-            redis.sadd(
-                "queue:active",
-                token
-            )
-
-            redis.set(
-                f"entry:{token}",
-                "allowed",
-                ex=APPLY_TIME_LIMIT
-            )
-
-            redis.set(
-                f"entered_at:{token}",
-                now,
-                ex=APPLY_TIME_LIMIT
-            )
-
-            redis.set(
-                f"heartbeat:{token}",
-                now,
-                ex=HEARTBEAT_TIMEOUT
-            )
-
-            redis.delete(
-                f"waiting_alive:{token}"
+            redis.zadd(
+                ACTIVE_KEY,
+                {
+                    token:
+                        expire_at
+                },
             )
 
     finally:
 
-        release_queue_lock(
+        release_lock(
             lock_id
         )
 
 
-def remove_active_user(token):
+def user_is_active(token):
 
     if not token:
-        return
+        return False
 
-    redis.srem(
-        "queue:active",
-        token
+    cleanup_expired_active()
+
+    score = redis.zscore(
+        ACTIVE_KEY,
+        token,
     )
 
-    redis.delete(
-        f"entry:{token}"
+    return score is not None
+
+
+def get_user_remaining_time(token):
+
+    score = redis.zscore(
+        ACTIVE_KEY,
+        token,
     )
 
-    redis.delete(
-        f"heartbeat:{token}"
-    )
+    if score is None:
+        return 0
 
-    redis.delete(
-        f"entered_at:{token}"
-    )
-
-    redis.delete(
-        f"waiting_alive:{token}"
-    )
-
-    try_admit_users()
-
-
-def remove_waiting_user(token):
-
-    if not token:
-        return
-
-    redis.lrem(
-        "queue:waiting",
+    return max(
+        int(float(score))
+        - now(),
         0,
-        token
-    )
-
-    redis.delete(
-        f"waiting_alive:{token}"
     )
 
 
-def clear_ticket_session():
+def user_is_waiting(token):
 
-    session.pop(
+    if not token:
+        return False
+
+    return (
+        redis.zscore(
+            WAITING_KEY,
+            token,
+        )
+        is not None
+    )
+
+
+def remove_user(token):
+
+    if not token:
+        return
+
+    redis.zrem(
+        WAITING_KEY,
+        token,
+    )
+
+    redis.zrem(
+        ACTIVE_KEY,
+        token,
+    )
+
+
+def get_waiting_position(token):
+
+    rank = redis.zrank(
+        WAITING_KEY,
+        token,
+    )
+
+    if rank is None:
+        return None
+
+    return int(rank) + 1
+
+
+def clear_session():
+
+    keys = [
         "queue_token",
-        None
-    )
-
-    session.pop(
         "queue_no",
-        None
-    )
-
-    session.pop(
         "completed",
-        None
-    )
-
-    session.pop(
         "student_name",
-        None
-    )
-
-    session.pop(
         "people_count",
-        None
-    )
-
-    session.pop(
         "seat_numbers",
-        None
-    )
+    ]
+
+    for key in keys:
+        session.pop(
+            key,
+            None
+        )
 
 
 # =========================================================
-# 입력 검증
+# VALIDATION
 # =========================================================
 
-def valid_name(name):
+def valid_name(value):
 
     return bool(
         re.fullmatch(
-            r"[가-힣a-zA-Z\s]{2,20}",
-            name
+            r"[가-힣A-Za-z\s]{2,20}",
+            value,
         )
     )
 
 
-def valid_phone(phone):
+def valid_phone(value):
 
     return bool(
         re.fullmatch(
-            r"01[0-9]-\d{3,4}-\d{4}",
-            phone
+            r"01\d-\d{3,4}-\d{4}",
+            value,
         )
     )
 
 
 # =========================================================
-# 메인 페이지
+# HOME
 # =========================================================
 
 @app.route("/")
 def index():
 
-    # 메인으로 들어오면 기존 예매 세션 제거
     old_token = session.get(
         "queue_token"
     )
 
     if old_token:
 
-        remove_waiting_user(
+        remove_user(
             old_token
         )
 
-        if redis.sismember(
-            "queue:active",
-            old_token
-        ):
-            remove_active_user(
-                old_token
-            )
+        # 슬롯이 생겼을 수 있음
+        admit_users()
 
-    clear_ticket_session()
+    clear_session()
 
     remaining = get_remaining_seats()
 
     return render_template(
         "index.html",
-        remaining=remaining
+        remaining=remaining,
     )
 
 
 # =========================================================
-# 예매하기 버튼
+# ENTER QUEUE
 # =========================================================
 
 @app.route("/enter")
 def enter():
 
-    remaining = get_remaining_seats()
-
-    if remaining <= 0:
+    if get_remaining_seats() <= 0:
         return redirect("/")
 
-    old_token = session.get(
+    token = session.get(
         "queue_token"
     )
 
-    # 이미 신청 페이지에 입장한 사용자
-    if old_token:
-
-        if redis.get(
-            f"entry:{old_token}"
-        ):
-
-            return redirect(
-                "/apply"
-            )
-
-        waiting_list = redis.lrange(
-            "queue:waiting",
-            0,
-            -1
+    # 이미 신청창 입장 상태
+    if (
+        token
+        and user_is_active(token)
+    ):
+        return redirect(
+            "/apply"
         )
 
-        if old_token in waiting_list:
+    # 이미 대기 중
+    if (
+        token
+        and user_is_waiting(token)
+    ):
+        return redirect(
+            "/waiting"
+        )
 
-            redis.set(
-                f"waiting_alive:{old_token}",
-                "1",
-                ex=60
-            )
-
-            return redirect(
-                "/waiting"
-            )
-
-    # 새로운 대기자
+    # 신규 사용자
     token = str(
         uuid.uuid4()
     )
 
-    queue_no = redis.incr(
-        "queue:last_number"
+    queue_no = int(
+        redis.incr(
+            LAST_NUMBER_KEY
+        )
     )
 
-    session[
-        "queue_token"
-    ] = token
+    session["queue_token"] = token
+    session["queue_no"] = queue_no
 
-    session[
-        "queue_no"
-    ] = int(queue_no)
-
-    redis.set(
-        f"queue_number:{token}",
-        int(queue_no),
-        ex=3600
+    # queue_no 자체를 score로 사용
+    redis.zadd(
+        WAITING_KEY,
+        {
+            token: queue_no
+        },
     )
 
-    redis.set(
-        f"waiting_alive:{token}",
-        "1",
-        ex=60
-    )
+    admit_users()
 
-    redis.rpush(
-        "queue:waiting",
-        token
-    )
-
-    try_admit_users()
-
-    if redis.get(
-        f"entry:{token}"
-    ):
+    if user_is_active(token):
 
         return redirect(
             "/apply"
@@ -594,7 +513,7 @@ def enter():
 
 
 # =========================================================
-# 대기 화면
+# WAITING
 # =========================================================
 
 @app.route("/waiting")
@@ -605,16 +524,15 @@ def waiting():
     )
 
     if not token:
-
         return redirect("/")
 
-    if redis.get(
-        f"entry:{token}"
-    ):
-
+    if user_is_active(token):
         return redirect(
             "/apply"
         )
+
+    if not user_is_waiting(token):
+        return redirect("/")
 
     return render_template(
         "waiting.html"
@@ -622,7 +540,7 @@ def waiting():
 
 
 # =========================================================
-# 대기 상태
+# QUEUE STATUS
 # =========================================================
 
 @app.route("/queue/status")
@@ -642,58 +560,43 @@ def queue_status():
             "valid": False
         }), 401
 
-    # 대기 중인 사용자 생존 확인
-    redis.set(
-        f"waiting_alive:{token}",
-        "1",
-        ex=60
-    )
+    # 만료 슬롯 정리 + 다음 사람 입장
+    admit_users()
 
-    try_admit_users()
-
-    if redis.get(
-        f"entry:{token}"
-    ):
+    if user_is_active(token):
 
         return jsonify({
             "valid": True,
             "can_enter": True,
             "queue_no": queue_no,
-            "waiting_count": 0,
-            "active_count":
-                get_active_count()
         })
 
-    waiting_list = redis.lrange(
-        "queue:waiting",
-        0,
-        -1
+    position = get_waiting_position(
+        token
     )
 
-    try:
+    if position is None:
 
-        position = (
-            waiting_list.index(token)
-            + 1
-        )
-
-    except ValueError:
-
-        position = 0
+        return jsonify({
+            "valid": False
+        })
 
     return jsonify({
         "valid": True,
         "can_enter": False,
         "queue_no": queue_no,
+
+        # 내 앞 사람 수
         "waiting_count":
-            max(position - 1, 0),
-        "active_count":
-            get_active_count()
+            max(
+                position - 1,
+                0
+            ),
     })
 
 
 # =========================================================
-# 신청 화면
+# APPLY
 # =========================================================
 
 @app.route("/apply")
@@ -706,122 +609,56 @@ def apply():
     if not token:
         return redirect("/")
 
-    if not redis.get(
-        f"entry:{token}"
-    ):
+    if not user_is_active(token):
 
-        return redirect(
-            "/waiting"
-        )
+        if user_is_waiting(token):
+            return redirect(
+                "/waiting"
+            )
 
-    entered_at = redis.get(
-        f"entered_at:{token}"
-    )
-
-    if not entered_at:
-
-        remove_active_user(
-            token
-        )
-
-        clear_ticket_session()
+        clear_session()
 
         return redirect("/")
 
-    elapsed = (
-        int(time.time())
-        - int(entered_at)
-    )
-
-    remaining_time = max(
-        APPLY_TIME_LIMIT
-        - elapsed,
-        0
+    remaining_time = (
+        get_user_remaining_time(
+            token
+        )
     )
 
     if remaining_time <= 0:
 
-        remove_active_user(
-            token
-        )
-
-        clear_ticket_session()
+        remove_user(token)
+        clear_session()
+        admit_users()
 
         return redirect("/")
-
-    redis.set(
-        f"heartbeat:{token}",
-        int(time.time()),
-        ex=HEARTBEAT_TIMEOUT
-    )
 
     remaining = get_remaining_seats()
 
     if remaining <= 0:
 
-        remove_active_user(
-            token
-        )
-
-        clear_ticket_session()
+        remove_user(token)
+        clear_session()
+        admit_users()
 
         return redirect("/")
 
     return render_template(
         "apply.html",
         remaining=remaining,
-        remaining_time=remaining_time
+        remaining_time=
+            remaining_time,
     )
 
 
 # =========================================================
-# Heartbeat
-# =========================================================
-
-@app.route(
-    "/heartbeat",
-    methods=["POST"]
-)
-def heartbeat():
-
-    token = session.get(
-        "queue_token"
-    )
-
-    if not token:
-
-        return jsonify({
-            "ok": False,
-            "expired": True
-        }), 401
-
-    if not redis.get(
-        f"entry:{token}"
-    ):
-
-        return jsonify({
-            "ok": False,
-            "expired": True
-        })
-
-    redis.set(
-        f"heartbeat:{token}",
-        int(time.time()),
-        ex=HEARTBEAT_TIMEOUT
-    )
-
-    return jsonify({
-        "ok": True
-    })
-
-
-# =========================================================
-# 시간 초과 / 나가기
+# LEAVE
 # =========================================================
 
 @app.route(
     "/leave",
-    methods=["POST"]
+    methods=["POST"],
 )
 def leave():
 
@@ -830,16 +667,12 @@ def leave():
     )
 
     if token:
+        remove_user(token)
 
-        remove_waiting_user(
-            token
-        )
+    clear_session()
 
-        remove_active_user(
-            token
-        )
-
-    clear_ticket_session()
+    # 다음 대기자 즉시 입장
+    admit_users()
 
     return jsonify({
         "ok": True
@@ -847,12 +680,12 @@ def leave():
 
 
 # =========================================================
-# 신청
+# RESERVE
 # =========================================================
 
 @app.route(
     "/reserve",
-    methods=["POST"]
+    methods=["POST"],
 )
 def reserve():
 
@@ -860,102 +693,97 @@ def reserve():
         "queue_token"
     )
 
-    if not token:
-        return redirect("/")
-
-    if not redis.get(
-        f"entry:{token}"
+    if (
+        not token
+        or not user_is_active(token)
     ):
-
-        clear_ticket_session()
+        clear_session()
 
         return redirect("/")
 
-    student_name = request.form.get(
-        "student_name",
-        ""
-    ).strip()
+    student_name = (
+        request.form.get(
+            "student_name",
+            ""
+        ).strip()
+    )
 
-    student_phone = request.form.get(
-        "student_phone",
-        ""
-    ).strip()
+    student_phone = (
+        request.form.get(
+            "student_phone",
+            ""
+        ).strip()
+    )
 
-    parent_name = request.form.get(
-        "parent_name",
-        ""
-    ).strip()
+    parent_name = (
+        request.form.get(
+            "parent_name",
+            ""
+        ).strip()
+    )
 
-    parent_phone = request.form.get(
-        "parent_phone",
-        ""
-    ).strip()
+    parent_phone = (
+        request.form.get(
+            "parent_phone",
+            ""
+        ).strip()
+    )
 
     try:
 
         people_count = int(
             request.form.get(
                 "people_count",
-                "0"
+                0,
             )
         )
 
-    except ValueError:
+    except (ValueError, TypeError):
 
         people_count = 0
 
-    # 서버 검증
 
     if not valid_name(
         student_name
     ):
-
         return (
-            "학생 이름을 "
-            "정확히 입력해주세요.",
-            400
+            "학생 이름을 확인해주세요.",
+            400,
         )
 
     if not valid_name(
         parent_name
     ):
-
         return (
-            "보호자 이름을 "
-            "정확히 입력해주세요.",
-            400
+            "보호자 이름을 확인해주세요.",
+            400,
         )
 
     if not valid_phone(
         student_phone
     ):
-
         return (
-            "학생 전화번호를 "
-            "정확히 입력해주세요.",
-            400
+            "학생 전화번호를 확인해주세요.",
+            400,
         )
 
     if not valid_phone(
         parent_phone
     ):
-
         return (
-            "보호자 전화번호를 "
-            "정확히 입력해주세요.",
-            400
+            "보호자 전화번호를 확인해주세요.",
+            400,
         )
 
     if people_count not in (
         1,
-        2
+        2,
     ):
-
         return (
-            "신청 인원이 "
-            "올바르지 않습니다.",
-            400
+            "신청 인원을 확인해주세요.",
+            400,
         )
+
 
     conn = get_db()
     cur = conn.cursor()
@@ -964,8 +792,10 @@ def reserve():
 
         conn.autocommit = False
 
-        # 좌석 카운터를 잠가
-        # 동시 예약 시 중복 배정 방지
+        # -----------------------------------------
+        # 좌석 row lock
+        # -----------------------------------------
+
         cur.execute("""
             SELECT
                 next_seat,
@@ -975,39 +805,31 @@ def reserve():
             FOR UPDATE
         """)
 
-        seat_data = (
-            cur.fetchone()
-        )
+        seat = cur.fetchone()
 
-        if not seat_data:
+        if not seat:
 
             conn.rollback()
 
             return (
-                "좌석 정보가 없습니다.",
-                500
+                "좌석 데이터가 없습니다.",
+                500,
             )
 
-        next_seat = (
-            seat_data[
-                "next_seat"
-            ]
+
+        next_seat = int(
+            seat["next_seat"]
         )
 
-        total_seats = (
-            seat_data[
-                "total_seats"
-            ]
+        total_seats = int(
+            seat["total_seats"]
         )
 
-        last_seat = (
+
+        if (
             next_seat
             + people_count
             - 1
-        )
-
-        if (
-            last_seat
             > total_seats
         ):
 
@@ -1015,25 +837,30 @@ def reserve():
 
             return (
                 "남은 좌석이 부족합니다.",
-                409
+                409,
             )
 
-        seat_list = list(
+
+        seats = list(
             range(
                 next_seat,
                 next_seat
-                + people_count
+                + people_count,
             )
         )
 
         seat_numbers = ", ".join(
             map(
                 str,
-                seat_list
+                seats
             )
         )
 
+
+        # -----------------------------------------
         # 예약 저장
+        # -----------------------------------------
+
         cur.execute("""
             INSERT INTO reservations (
                 student_name,
@@ -1057,10 +884,14 @@ def reserve():
             parent_name,
             parent_phone,
             people_count,
-            seat_numbers
+            seat_numbers,
         ))
 
-        # 좌석 증가
+
+        # -----------------------------------------
+        # 다음 좌석
+        # -----------------------------------------
+
         cur.execute("""
             UPDATE seat_counter
             SET next_seat =
@@ -1070,68 +901,34 @@ def reserve():
             people_count,
         ))
 
+
         conn.commit()
 
-        # 성공 화면용
-        session[
-            "completed"
-        ] = True
-
-        session[
-            "student_name"
-        ] = student_name
-
-        session[
-            "people_count"
-        ] = people_count
-
-        session[
-            "seat_numbers"
-        ] = seat_numbers
-
-        # 신청 페이지 슬롯 반환
-        remove_active_user(
-            token
-        )
-
-        session.pop(
-            "queue_token",
-            None
-        )
-
-        session.pop(
-            "queue_no",
-            None
-        )
-
-        return redirect(
-            "/success"
-        )
 
     except psycopg2.errors.UniqueViolation:
 
         conn.rollback()
 
         return (
-            "이미 신청된 "
-            "학생 전화번호입니다.",
-            409
+            "이미 신청된 학생 전화번호입니다.",
+            409,
         )
 
-    except Exception as e:
+
+    except Exception as error:
 
         conn.rollback()
 
         print(
-            "예약 오류:",
-            e
+            "RESERVE ERROR:",
+            repr(error)
         )
 
         return (
-            "신청 처리 중 오류가 "
-            "발생했습니다.",
-            500
+            "신청 처리 중 오류가 발생했습니다.",
+            500,
         )
+
 
     finally:
 
@@ -1139,8 +936,47 @@ def reserve():
         conn.close()
 
 
+    # ---------------------------------------------
+    # 성공
+    # ---------------------------------------------
+
+    session["completed"] = True
+
+    session["student_name"] = (
+        student_name
+    )
+
+    session["people_count"] = (
+        people_count
+    )
+
+    session["seat_numbers"] = (
+        seat_numbers
+    )
+
+
+    remove_user(token)
+
+    session.pop(
+        "queue_token",
+        None
+    )
+
+    session.pop(
+        "queue_no",
+        None
+    )
+
+    # 슬롯 반환 후 다음 사람 입장
+    admit_users()
+
+    return redirect(
+        "/success"
+    )
+
+
 # =========================================================
-# 성공 페이지
+# SUCCESS
 # =========================================================
 
 @app.route("/success")
@@ -1149,7 +985,6 @@ def success():
     if not session.get(
         "completed"
     ):
-
         return redirect("/")
 
     student_name = session.get(
@@ -1164,8 +999,7 @@ def success():
         "seat_numbers"
     )
 
-    # 성공 화면 최초 1회 표시 후
-    # 완료 세션 제거
+    # 한 번만 볼 수 있도록 제거
     session.pop(
         "completed",
         None
@@ -1190,21 +1024,19 @@ def success():
         "success.html",
         student_name=student_name,
         people_count=people_count,
-        seat_numbers=seat_numbers
+        seat_numbers=seat_numbers,
     )
 
 
 # =========================================================
-# 관리자
+# ADMIN
 # =========================================================
 
 @app.route("/admin")
 @admin_required
 def admin():
 
-    cleanup_active_users()
-
-    try_admit_users()
+    admit_users()
 
     conn = get_db()
     cur = conn.cursor()
@@ -1229,56 +1061,70 @@ def admin():
             WHERE id = 1
         """)
 
-        seat_data = (
-            cur.fetchone()
-        )
+        seat = cur.fetchone()
 
     finally:
 
         cur.close()
         conn.close()
 
-    used_seats = (
-        seat_data["next_seat"]
+
+    if not seat:
+
+        return (
+            "seat_counter가 없습니다.",
+            500,
+        )
+
+
+    total = int(
+        seat["total_seats"]
+    )
+
+    used = (
+        int(seat["next_seat"])
         - 1
     )
 
     remaining = max(
-        seat_data["total_seats"]
-        - used_seats,
-        0
+        total - used,
+        0,
     )
 
-    active_count = (
-        get_active_count()
-    )
-
-    waiting_count = int(
-        redis.llen(
-            "queue:waiting"
-        ) or 0
-    )
 
     return render_template(
         "admin.html",
-        reservations=reservations,
+
+        reservations=
+            reservations,
+
         total_seats=
-            seat_data["total_seats"],
-        used_seats=used_seats,
-        remaining=remaining,
-        active_count=active_count,
-        waiting_count=waiting_count,
-        max_active=MAX_ACTIVE
+            total,
+
+        used_seats=
+            used,
+
+        remaining=
+            remaining,
+
+        active_count=
+            active_count(),
+
+        waiting_count=
+            waiting_count(),
+
+        max_active=
+            MAX_ACTIVE,
     )
 
 
 # =========================================================
-# 엑셀
+# EXCEL
 # =========================================================
 
 @app.route("/admin/excel")
 @admin_required
-def download_excel():
+def excel():
 
     conn = get_db()
 
@@ -1295,70 +1141,69 @@ def download_excel():
                 seat_numbers AS 배정좌석,
                 created_at AS 신청시간
             FROM reservations
-            ORDER BY id ASC
+            ORDER BY id
         """, conn)
 
     finally:
 
         conn.close()
 
+
     output = BytesIO()
 
     with pd.ExcelWriter(
         output,
-        engine="openpyxl"
+        engine="openpyxl",
     ) as writer:
 
         df.to_excel(
             writer,
             index=False,
-            sheet_name="신청자목록"
+            sheet_name="신청자목록",
         )
 
+
     output.seek(0)
+
 
     return send_file(
         output,
         as_attachment=True,
         download_name=
             "입시설명회_신청자목록.xlsx",
-        mimetype=
+        mimetype=(
             "application/vnd.openxmlformats-"
             "officedocument.spreadsheetml.sheet"
+        ),
     )
 
 
 # =========================================================
-# Redis 대기열 초기화
+# RESET QUEUE
 # =========================================================
 
 @app.route(
     "/admin/reset-queue",
-    methods=["POST"]
+    methods=["POST"],
 )
 @admin_required
 def reset_queue():
 
-    patterns = [
-        "queue:*",
-        "entry:*",
-        "heartbeat:*",
-        "entered_at:*",
-        "waiting_alive:*",
-        "queue_number:*",
-    ]
+    redis.delete(
+        WAITING_KEY
+    )
 
-    for pattern in patterns:
+    redis.delete(
+        ACTIVE_KEY
+    )
 
-        keys = redis.keys(
-            pattern
-        ) or []
+    redis.delete(
+        LAST_NUMBER_KEY
+    )
 
-        for key in keys:
-
-            redis.delete(
-                key
-            )
+    redis.delete(
+        LOCK_KEY
+    )
 
     return redirect(
         "/admin"
@@ -1366,13 +1211,66 @@ def reset_queue():
 
 
 # =========================================================
-# 서버 실행
+# DEBUG
+# =========================================================
+
+@app.route("/admin/debug")
+@admin_required
+def debug():
+
+    cleanup_expired_active()
+
+    return jsonify({
+
+        "MAX_ACTIVE":
+            MAX_ACTIVE,
+
+        "active":
+            redis.zcard(
+                ACTIVE_KEY
+            ) or 0,
+
+        "waiting":
+            redis.zcard(
+                WAITING_KEY
+            ) or 0,
+
+        "active_users":
+            redis.zrange(
+                ACTIVE_KEY,
+                0,
+                -1,
+            ) or [],
+
+        "waiting_users":
+            redis.zrange(
+                WAITING_KEY,
+                0,
+                -1,
+            ) or [],
+    })
+
+
+# =========================================================
+# RUN
 # =========================================================
 
 if __name__ == "__main__":
 
+    print()
+    print("==============================")
+    print(" UJHS TICKETING")
+    print("------------------------------")
+    print("MAX_ACTIVE:", MAX_ACTIVE)
+    print(
+        "APPLY_TIME_LIMIT:",
+        APPLY_TIME_LIMIT
+    )
+    print("==============================")
+    print()
+
     app.run(
         host="0.0.0.0",
         port=5000,
-        debug=True
+        debug=True,
     )

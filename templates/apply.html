@@ -17,9 +17,7 @@
 
         background: #f5f6f8;
 
-        font-family: Pretendard, Arial, sans-serif;
-
-        color: #191919;
+        font-family: Arial, sans-serif;
       }
 
       .container {
@@ -41,16 +39,11 @@
       }
 
       h1 {
-        margin-top: 0;
-
         text-align: center;
-
-        font-size: 26px;
       }
 
       .status {
         display: flex;
-
         justify-content: space-between;
 
         margin: 22px 0 28px;
@@ -60,55 +53,42 @@
         background: #f8fafc;
 
         border-radius: 10px;
-
-        font-size: 14px;
-      }
-
-      #timer {
-        color: #dc2626;
-
-        font-weight: 700;
       }
 
       .remain {
         color: #2563eb;
+        font-weight: bold;
+      }
 
-        font-weight: 700;
+      #timer {
+        color: #dc2626;
+        font-weight: bold;
       }
 
       label {
         display: block;
 
         margin-top: 18px;
-
         margin-bottom: 7px;
 
-        font-weight: 700;
+        font-weight: bold;
       }
 
       input,
       select {
         width: 100%;
 
-        padding: 13px 14px;
+        padding: 13px;
 
         border: 1px solid #d1d5db;
 
         border-radius: 9px;
 
         font-size: 16px;
-
-        outline: none;
-      }
-
-      input:focus,
-      select:focus {
-        border-color: #2563eb;
       }
 
       .phone {
         display: flex;
-
         align-items: center;
 
         gap: 7px;
@@ -116,12 +96,7 @@
 
       .phone input {
         text-align: center;
-
         min-width: 0;
-      }
-
-      .phone span {
-        color: #777;
       }
 
       .submit-btn {
@@ -136,28 +111,16 @@
         border-radius: 10px;
 
         background: #2563eb;
-
         color: white;
 
         font-size: 17px;
-
-        font-weight: 700;
+        font-weight: bold;
 
         cursor: pointer;
       }
 
       .submit-btn:disabled {
         background: #94a3b8;
-      }
-
-      .notice {
-        margin-top: 20px;
-
-        color: #666;
-
-        font-size: 13px;
-
-        line-height: 1.7;
       }
     </style>
   </head>
@@ -175,7 +138,7 @@
 
           <div>
             남은 시간 :
-            <span id="timer"> </span>
+            <span id="timer"></span>
           </div>
         </div>
 
@@ -183,12 +146,10 @@
           <label> 학생 이름 </label>
 
           <input
-            type="text"
             id="studentName"
+            type="text"
             name="student_name"
-            autocomplete="name"
             maxlength="20"
-            placeholder="학생 이름"
             required
           />
 
@@ -196,8 +157,7 @@
 
           <div class="phone">
             <input
-              id="studentPhone1"
-              type="text"
+              id="s1"
               value="010"
               maxlength="3"
               inputmode="numeric"
@@ -206,23 +166,11 @@
 
             <span>-</span>
 
-            <input
-              id="studentPhone2"
-              type="text"
-              maxlength="4"
-              inputmode="numeric"
-              required
-            />
+            <input id="s2" maxlength="4" inputmode="numeric" required />
 
             <span>-</span>
 
-            <input
-              id="studentPhone3"
-              type="text"
-              maxlength="4"
-              inputmode="numeric"
-              required
-            />
+            <input id="s3" maxlength="4" inputmode="numeric" required />
           </div>
 
           <input type="hidden" id="studentPhone" name="student_phone" />
@@ -230,11 +178,10 @@
           <label> 보호자 이름 </label>
 
           <input
-            type="text"
             id="parentName"
+            type="text"
             name="parent_name"
             maxlength="20"
-            placeholder="보호자 이름"
             required
           />
 
@@ -242,8 +189,7 @@
 
           <div class="phone">
             <input
-              id="parentPhone1"
-              type="text"
+              id="p1"
               value="010"
               maxlength="3"
               inputmode="numeric"
@@ -252,23 +198,11 @@
 
             <span>-</span>
 
-            <input
-              id="parentPhone2"
-              type="text"
-              maxlength="4"
-              inputmode="numeric"
-              required
-            />
+            <input id="p2" maxlength="4" inputmode="numeric" required />
 
             <span>-</span>
 
-            <input
-              id="parentPhone3"
-              type="text"
-              maxlength="4"
-              inputmode="numeric"
-              required
-            />
+            <input id="p3" maxlength="4" inputmode="numeric" required />
           </div>
 
           <input type="hidden" id="parentPhone" name="parent_phone" />
@@ -285,14 +219,6 @@
             신청 완료
           </button>
         </form>
-
-        <div class="notice">
-          ※ 제한 시간이 지나면 자동으로 메인 화면으로 이동합니다.
-
-          <br />
-
-          ※ 학생 전화번호 기준으로 중복 신청이 제한됩니다.
-        </div>
       </div>
     </div>
 
@@ -302,12 +228,6 @@
           document.getElementById(
               "reserveForm"
           );
-
-      const submitBtn =
-          document.getElementById(
-              "submitBtn"
-          );
-
 
       const studentName =
           document.getElementById(
@@ -319,42 +239,25 @@
               "parentName"
           );
 
-
       const s1 =
-          document.getElementById(
-              "studentPhone1"
-          );
+          document.getElementById("s1");
 
       const s2 =
-          document.getElementById(
-              "studentPhone2"
-          );
+          document.getElementById("s2");
 
       const s3 =
-          document.getElementById(
-              "studentPhone3"
-          );
-
+          document.getElementById("s3");
 
       const p1 =
-          document.getElementById(
-              "parentPhone1"
-          );
+          document.getElementById("p1");
 
       const p2 =
-          document.getElementById(
-              "parentPhone2"
-          );
+          document.getElementById("p2");
 
       const p3 =
-          document.getElementById(
-              "parentPhone3"
-          );
+          document.getElementById("p3");
 
-
-      function numbersOnly(
-          input
-      ) {
+      function numbersOnly(input) {
 
           input.value =
               input.value.replace(
@@ -362,7 +265,6 @@
                   ""
               );
       }
-
 
       function autoMove(
           current,
@@ -382,27 +284,16 @@
                       current.value.length
                       === length
                   ) {
-
                       next.focus();
                   }
               }
           );
       }
 
+      autoMove(s1, s2, 3);
+      autoMove(s2, s3, 4);
 
-      autoMove(
-          s1,
-          s2,
-          3
-      );
-
-      autoMove(
-          s2,
-          s3,
-          4
-      );
-
-      // 학생 전화번호 마지막 →
+      // 학생 전화 마지막 →
       // 보호자 이름
       autoMove(
           s3,
@@ -410,32 +301,15 @@
           4
       );
 
-
-      autoMove(
-          p1,
-          p2,
-          3
-      );
-
-      autoMove(
-          p2,
-          p3,
-          4
-      );
-
+      autoMove(p1, p2, 3);
+      autoMove(p2, p3, 4);
 
       p3.addEventListener(
           "input",
-          () => {
-
-              numbersOnly(p3);
-          }
+          () => numbersOnly(p3)
       );
 
-
-      function validName(
-          value
-      ) {
+      function validName(value) {
 
           return /^[가-힣a-zA-Z\s]{2,20}$/
               .test(
@@ -443,45 +317,35 @@
               );
       }
 
-
       form.addEventListener(
           "submit",
-          event => {
+          e => {
 
-              event.preventDefault();
-
+              e.preventDefault();
 
               if (
                   !validName(
                       studentName.value
                   )
               ) {
-
                   alert(
                       "학생 이름을 정확히 입력해주세요."
                   );
 
-                  studentName.focus();
-
                   return;
               }
-
 
               if (
                   !validName(
                       parentName.value
                   )
               ) {
-
                   alert(
                       "보호자 이름을 정확히 입력해주세요."
                   );
 
-                  parentName.focus();
-
                   return;
               }
-
 
               if (
                   s1.value.length !== 3 ||
@@ -489,16 +353,12 @@
                   s2.value.length > 4 ||
                   s3.value.length !== 4
               ) {
-
                   alert(
-                      "학생 전화번호를 정확히 입력해주세요."
+                      "학생 전화번호를 확인해주세요."
                   );
-
-                  s1.focus();
 
                   return;
               }
-
 
               if (
                   p1.value.length !== 3 ||
@@ -506,16 +366,12 @@
                   p2.value.length > 4 ||
                   p3.value.length !== 4
               ) {
-
                   alert(
-                      "보호자 전화번호를 정확히 입력해주세요."
+                      "보호자 전화번호를 확인해주세요."
                   );
-
-                  p1.focus();
 
                   return;
               }
-
 
               document
                   .getElementById(
@@ -524,7 +380,6 @@
                   .value =
                       `${s1.value}-${s2.value}-${s3.value}`;
 
-
               document
                   .getElementById(
                       "parentPhone"
@@ -532,61 +387,33 @@
                   .value =
                       `${p1.value}-${p2.value}-${p3.value}`;
 
-
-              submitBtn.disabled =
-                  true;
-
-              submitBtn.textContent =
-                  "신청 처리 중...";
-
+              document
+                  .getElementById(
+                      "submitBtn"
+                  )
+                  .disabled = true;
 
               form.submit();
           }
       );
 
 
-      // =============================
+      // =========================
       // 타이머
-      // =============================
+      // =========================
 
       let remainingTime =
           {{ remaining_time }};
 
+      let timerFinished = false;
 
-      function updateTimer() {
+      async function expire() {
 
-          const minutes =
-              Math.floor(
-                  remainingTime / 60
-              );
-
-          const seconds =
-              remainingTime % 60;
-
-
-          document
-              .getElementById(
-                  "timer"
-              )
-              .textContent =
-                  `${minutes}:${String(seconds).padStart(2, "0")}`;
-
-
-          if (
-              remainingTime <= 0
-          ) {
-
-              expire();
-
+          if (timerFinished) {
               return;
           }
 
-
-          remainingTime--;
-      }
-
-
-      async function expire() {
+          timerFinished = true;
 
           try {
 
@@ -598,7 +425,6 @@
               );
 
           } catch (e) {
-
               console.error(e);
           }
 
@@ -606,62 +432,36 @@
       }
 
 
+      function updateTimer() {
+
+          const min =
+              Math.floor(
+                  remainingTime / 60
+              );
+
+          const sec =
+              remainingTime % 60;
+
+          document
+              .getElementById(
+                  "timer"
+              )
+              .textContent =
+                  `${min}:${String(sec).padStart(2, "0")}`;
+
+          if (remainingTime <= 0) {
+              expire();
+              return;
+          }
+
+          remainingTime--;
+      }
+
       updateTimer();
 
       setInterval(
           updateTimer,
           1000
-      );
-
-
-      // =============================
-      // Heartbeat
-      // =============================
-
-      async function heartbeat() {
-
-          try {
-
-              const response =
-                  await fetch(
-                      "/heartbeat",
-                      {
-                          method: "POST"
-                      }
-                  );
-
-
-              const data =
-                  await response.json();
-
-
-              if (
-                  !data.ok &&
-                  data.expired
-              ) {
-
-                  location.replace(
-                      "/"
-                  );
-              }
-
-          }
-
-          catch (error) {
-
-              console.error(
-                  "heartbeat 오류",
-                  error
-              );
-          }
-      }
-
-
-      heartbeat();
-
-      setInterval(
-          heartbeat,
-          10000
       );
     </script>
   </body>

@@ -1,201 +1,491 @@
 <!doctype html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+  <meta charset="UTF-8">
 
-    <title>운정고등학교 입시설명회</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
 
-    <style>
-      * {
-        box-sizing: border-box;
-      }
+  <title>운정고 티켓팅 테스트</title>
 
-      body {
-        margin: 0;
-        font-family: Arial, sans-serif;
-        background: #f5f6f8;
-        color: #191919;
-      }
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f6f8;
+      color: #191919;
+    }
+
+    header {
+      height: 72px;
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+
+      display: flex;
+      align-items: center;
+
+      padding: 0 40px;
+
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .container {
+      max-width: 920px;
+      margin: 60px auto;
+      padding: 0 20px;
+    }
+
+    .card,
+    .notice {
+      background: #fff;
+      border-radius: 18px;
+
+      box-shadow:
+        0 8px 30px rgba(0, 0, 0, .07);
+    }
+
+    .card {
+      overflow: hidden;
+    }
+
+    .top {
+      padding: 40px;
+    }
+
+    .tag {
+      color: #2563eb;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      margin: 0 0 20px;
+    }
+
+    .info {
+      color: #555;
+      line-height: 1.9;
+    }
+
+    .bottom {
+      border-top: 1px solid #eee;
+
+      padding: 28px 40px;
+
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      gap: 20px;
+    }
+
+    .remaining strong {
+      color: #2563eb;
+      font-size: 22px;
+    }
+
+    .sale-status {
+      margin-top: 18px;
+
+      padding: 14px 16px;
+
+      border-radius: 10px;
+      background: #f8fafc;
+
+      font-weight: 700;
+    }
+
+    .sale-status.before {
+      color: #b45309;
+    }
+
+    .sale-status.open {
+      color: #15803d;
+    }
+
+    .sale-status.closed,
+    .sale-status.not_configured {
+      color: #64748b;
+    }
+
+    button {
+      padding: 15px 36px;
+
+      border: 0;
+      border-radius: 10px;
+
+      background: #2563eb;
+      color: #fff;
+
+      font-size: 17px;
+      font-weight: 700;
+
+      cursor: pointer;
+
+      min-width: 150px;
+    }
+
+    button:hover:not(:disabled) {
+      background: #1d4ed8;
+    }
+
+    button:disabled {
+      background: #94a3b8;
+      cursor: default;
+    }
+
+    .notice {
+      margin-top: 22px;
+      padding: 25px 30px;
+
+      color: #555;
+      line-height: 1.9;
+    }
+
+    @media (max-width: 600px) {
       header {
-        height: 72px;
-        background: white;
-        border-bottom: 1px solid #e5e7eb;
-
-        display: flex;
-        align-items: center;
-
-        padding: 0 40px;
-
-        font-size: 20px;
-        font-weight: bold;
-      }
-
-      .container {
-        max-width: 920px;
-        margin: 60px auto;
         padding: 0 20px;
       }
 
-      .card {
-        background: white;
-        border-radius: 18px;
-        overflow: hidden;
-
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.07);
+      .container {
+        margin-top: 30px;
       }
 
       .top {
-        padding: 40px;
-      }
-
-      .tag {
-        display: inline-block;
-        color: #2563eb;
-        font-weight: bold;
-        margin-bottom: 12px;
-      }
-
-      h1 {
-        margin: 0 0 24px;
-      }
-
-      .info {
-        color: #555;
-        line-height: 1.9;
+        padding: 28px;
       }
 
       .bottom {
-        border-top: 1px solid #eee;
+        padding: 24px 28px;
 
-        padding: 28px 40px;
-
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-
-      .remaining strong {
-        color: #2563eb;
-        font-size: 22px;
+        flex-direction: column;
+        align-items: stretch;
       }
 
       button {
-        padding: 15px 36px;
-
-        border: 0;
-        border-radius: 10px;
-
-        background: #2563eb;
-        color: white;
-
-        font-size: 17px;
-        font-weight: bold;
-
-        cursor: pointer;
+        width: 100%;
       }
+    }
+  </style>
+</head>
 
-      button:disabled {
-        background: #94a3b8;
-        cursor: default;
-      }
 
-      .notice {
-        margin-top: 22px;
-        padding: 25px 30px;
+<body>
 
-        background: white;
+<header>
+  운정고등학교
+</header>
 
-        border-radius: 14px;
 
-        color: #555;
-        line-height: 1.9;
-      }
+<main class="container">
 
-      @media (max-width: 600px) {
-        header {
-          padding: 0 20px;
-        }
+  <section class="card">
 
-        .container {
-          margin-top: 30px;
-        }
+    <div class="top">
 
-        .bottom {
-          flex-direction: column;
-          align-items: stretch;
-          gap: 20px;
-        }
+      <div class="tag">
+        운정고 티켓팅 테스트 사이트
+      </div>
 
-        button {
-          width: 100%;
-        }
-      }
-    </style>
-  </head>
+      <h1>
+        운정고 티켓팅 시스템 테스트
+      </h1>
 
-  <body>
-    <header>운정고등학교</header>
+      <!-- 판매 상태 -->
+      <div
+        id="saleStatus"
+        class="sale-status {{ sale_state }}"
+      >
 
-    <main class="container">
-      <section class="card">
-        <div class="top">
-          <div class="tag">입시설명회</div>
+        {% if sale_state == 'before' %}
+          {{ open_at_text }}
 
-          <h1>2026 운정고등학교 입시설명회</h1>
+        {% elif sale_state == 'open' %}
 
-          <div class="info">
-            일시 : 추후 입력<br />
-            장소 : 운정고등학교<br />
-            대상 : 중학생 및 보호자
-          </div>
-        </div>
+          현재 오픈 중
 
-        <div class="bottom">
-          <div class="remaining">
-            남은 좌석
-            <strong> {{ remaining }} </strong>
-            석
-          </div>
-
-          {% if remaining > 0 %}
-
-          <button id="reserveBtn">예매하기</button>
-
-          {% else %}
-
-          <button disabled>예매 마감</button>
-
+          {% if close_at_text %}
+            · {{ close_at_text }} 마감
           {% endif %}
-        </div>
-      </section>
 
-      <section class="notice">
-        <strong> 예매 안내 </strong>
+        {% elif sale_state == 'closed' %}
 
-        <br /><br />
+          테스트가 종료되었습니다.
 
-        · 예매하기 버튼을 누르면 대기열에 입장합니다.<br />
-        · 접속 인원이 많으면 순서대로 입장합니다.<br />
-        · 신청 페이지에서는 제한 시간 내 신청해야 합니다.<br />
-        · 신청이 완료되면 좌석이 자동 배정됩니다.
-      </section>
-    </main>
+        {% else %}
 
-    <script>
-      const button = document.getElementById("reserveBtn");
+          관리자가 아직 오픈 시간을 설정하지 않았습니다.
 
-      if (button) {
-        button.addEventListener("click", () => {
-          button.disabled = true;
+        {% endif %}
 
-          button.textContent = "접속 중...";
+      </div>
 
-          location.href = "/enter";
-        });
+    </div>
+
+
+    <div class="bottom">
+
+      <div class="remaining">
+
+        남은 좌석
+
+        <strong>
+          {{ remaining }}
+        </strong>
+
+        석
+
+      </div>
+
+
+      <button
+        id="reserveBtn"
+
+        {% if sale_state != 'open' or remaining <= 0 %}
+          disabled
+        {% endif %}
+      >
+
+        {% if remaining <= 0 %}
+
+          마감
+
+        {% elif sale_state == 'open' %}
+
+          티켓팅 입장
+
+        {% elif sale_state == 'before' %}
+
+          오픈 대기
+
+        {% else %}
+
+          입장 불가
+
+        {% endif %}
+
+      </button>
+
+    </div>
+
+  </section>
+
+
+  <section class="notice">
+
+    <strong>
+      테스트 안내
+    </strong>
+
+    <br><br>
+
+    · 지정된 오픈 시간 전에는 티켓팅에 입장할 수 없습니다.
+    <br>
+
+    · 오픈 시간이 되면 입장 버튼이 자동으로 활성화됩니다.
+    <br>
+
+    · 신청창에서는 학번 5자리만 입력하면 됩니다.
+    <br>
+
+    · 같은 학번으로는 한 번만 신청할 수 있습니다.
+
+  </section>
+
+</main>
+
+
+<script>
+
+  const button =
+    document.getElementById("reserveBtn");
+
+  const statusBox =
+    document.getElementById("saleStatus");
+
+
+  const openAt =
+    {{ open_at_ms if open_at_ms is not none else 'null' }};
+
+  const closeAt =
+    {{ close_at_ms if close_at_ms is not none else 'null' }};
+
+  const initialServerNow =
+    {{ server_now_ms }};
+
+  const clientStarted =
+    Date.now();
+
+  const remainingSeats =
+    {{ remaining }};
+
+
+  // 중복 입장 방지
+  let entering = false;
+
+
+  // 서버 시간을 기준으로 계산
+  function serverNow() {
+
+    return (
+      initialServerNow
+      +
+      (Date.now() - clientStarted)
+    );
+
+  }
+
+
+  function updateState() {
+
+    // 입장 요청을 시작했으면
+    // 버튼 상태를 다시 변경하지 않음
+    if (entering) {
+      return;
+    }
+
+
+    const now =
+      serverNow();
+
+
+    // =========================
+    // 좌석 마감
+    // =========================
+
+    if (remainingSeats <= 0) {
+
+      button.disabled = true;
+      button.textContent = "마감";
+
+      return;
+    }
+
+
+    // =========================
+    // 오픈시간 미설정
+    // =========================
+
+    if (!openAt) {
+
+      button.disabled = true;
+      button.textContent = "입장 불가";
+
+      statusBox.className =
+        "sale-status not_configured";
+
+      statusBox.textContent =
+        "관리자가 아직 오픈 시간을 설정하지 않았습니다.";
+
+      return;
+    }
+
+
+    // =========================
+    // 오픈 전
+    // =========================
+
+    if (now < openAt) {
+      addEventListener.disabled = true;
+      button.textContent = "오픈 대기";
+
+      statusBox.className = "sale-status before";
+      statusBox.textContent = "{{ open_at_text }}";
+
+      return;
+    }
+
+
+    // =========================
+    // 마감
+    // =========================
+
+    if (
+      closeAt &&
+      now >= closeAt
+    ) {
+
+      button.disabled = true;
+      button.textContent = "종료";
+
+      statusBox.className =
+        "sale-status closed";
+
+      statusBox.textContent =
+        "테스트가 종료되었습니다.";
+
+      return;
+    }
+
+
+    // =========================
+    // 오픈
+    // =========================
+
+    button.disabled = false;
+    button.textContent = "티켓팅 입장";
+
+    statusBox.className =
+      "sale-status open";
+
+    statusBox.textContent =
+      "현재 오픈 중";
+
+  }
+
+
+  // =========================
+  // 티켓팅 입장
+  // =========================
+
+  button.addEventListener(
+    "click",
+    () => {
+
+      if (
+        button.disabled ||
+        entering
+      ) {
+        return;
       }
-    </script>
-  </body>
+
+
+      entering = true;
+
+      button.disabled = true;
+      button.textContent = "접속 중...";
+
+
+      // /enter는 Redis만 사용
+      window.location.replace(
+        "/enter"
+      );
+
+    }
+  );
+
+
+  // 최초 상태 확인
+  updateState();
+
+
+  // 오픈시간 도달 여부만 브라우저에서 계산
+  // 서버 요청은 발생하지 않음
+  setInterval(
+    updateState,
+    250
+  );
+
+</script>
+
+
+</body>
 </html>

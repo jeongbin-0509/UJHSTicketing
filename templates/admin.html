@@ -1,172 +1,59 @@
 <!doctype html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>관리자</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:30px;background:#f5f6f8;font-family:Arial,sans-serif;color:#111827}.wrap{max-width:1200px;margin:auto}.cards{display:flex;flex-wrap:wrap;gap:15px;margin:25px 0}.card,.panel{background:#fff;border-radius:12px;padding:20px}.card{min-width:160px}.card strong{display:block;margin-top:7px;color:#2563eb;font-size:25px}.panel{margin-bottom:20px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.field label{display:block;font-weight:700;margin-bottom:7px}.field input{width:100%;padding:11px;border:1px solid #d1d5db;border-radius:8px;font-size:15px}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.button{display:inline-block;padding:11px 16px;border:0;border-radius:8px;background:#2563eb;color:#fff;text-decoration:none;cursor:pointer;font-weight:700}.danger{background:#dc2626}.secondary{background:#475569}.state{display:inline-block;padding:6px 10px;border-radius:999px;background:#e2e8f0;font-weight:700}table{width:100%;background:#fff;border-collapse:collapse}th,td{padding:11px;border:1px solid #ddd;text-align:center}th{background:#1e293b;color:#fff}@media(max-width:700px){body{padding:16px}.table-wrap{overflow:auto}table{min-width:650px}}
+</style>
+</head>
+<body><div class="wrap">
+<h1>학생 티켓팅 테스트 관리자</h1>
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<div class="cards">
+  <div class="card">전체 좌석<strong>{{ total_seats }}</strong></div>
+  <div class="card">사용 좌석<strong>{{ used_seats }}</strong></div>
+  <div class="card">남은 좌석<strong>{{ remaining }}</strong></div>
+  <div class="card">신청창 접속자<strong>{{ active_count }} / {{ max_active }}</strong></div>
+  <div class="card">대기자<strong>{{ waiting_count }}</strong></div>
+  <div class="card">현재 상태<strong style="font-size:18px">{{ sale_state }}</strong></div>
+</div>
 
-    <title>관리자</title>
-
-    <style>
-      body {
-        margin: 0;
-        padding: 30px;
-
-        background: #f5f6f8;
-
-        font-family: Arial, sans-serif;
-      }
-
-      .cards {
-        display: flex;
-        flex-wrap: wrap;
-
-        gap: 15px;
-
-        margin: 25px 0;
-      }
-
-      .card {
-        min-width: 160px;
-
-        padding: 20px;
-
-        background: white;
-
-        border-radius: 12px;
-      }
-
-      .card strong {
-        display: block;
-
-        margin-top: 7px;
-
-        color: #2563eb;
-
-        font-size: 25px;
-      }
-
-      .actions {
-        display: flex;
-
-        gap: 10px;
-
-        margin-bottom: 25px;
-      }
-
-      .button {
-        display: inline-block;
-
-        padding: 11px 16px;
-
-        border: 0;
-
-        border-radius: 8px;
-
-        background: #2563eb;
-        color: white;
-
-        text-decoration: none;
-
-        cursor: pointer;
-      }
-
-      .danger {
-        background: #dc2626;
-      }
-
-      table {
-        width: 100%;
-
-        background: white;
-
-        border-collapse: collapse;
-      }
-
-      th,
-      td {
-        padding: 11px;
-
-        border: 1px solid #ddd;
-
-        text-align: center;
-      }
-
-      th {
-        background: #1e293b;
-        color: white;
-      }
-    </style>
-  </head>
-
-  <body>
-    <h1>입시설명회 관리자</h1>
-
-    <div class="cards">
-      <div class="card">
-        전체 좌석
-        <strong> {{ total_seats }} </strong>
-      </div>
-
-      <div class="card">
-        사용 좌석
-        <strong> {{ used_seats }} </strong>
-      </div>
-
-      <div class="card">
-        남은 좌석
-        <strong> {{ remaining }} </strong>
-      </div>
-
-      <div class="card">
-        신청창 접속자
-        <strong> {{ active_count }} / {{ max_active }} </strong>
-      </div>
-
-      <div class="card">
-        대기자
-        <strong> {{ waiting_count }} </strong>
-      </div>
+<div class="panel">
+  <h2>오픈 시간 설정</h2>
+  <p>시간은 한국 시간(KST) 기준입니다. 마감 시간은 비워두면 수동으로 멈추거나 좌석이 소진될 때까지 열립니다.</p>
+  <form action="/admin/schedule" method="POST">
+    <div class="grid">
+      <div class="field"><label>오픈 시간</label><input type="datetime-local" name="open_at" value="{{ open_at_value }}" required></div>
+      <div class="field"><label>마감 시간 (선택)</label><input type="datetime-local" name="close_at" value="{{ close_at_value }}"></div>
     </div>
+    <label style="display:block;margin-top:14px"><input type="checkbox" name="reset_queue" value="1" checked> 시간 변경 시 기존 대기열도 초기화</label>
+    <div class="actions"><button class="button" type="submit">오픈 시간 저장</button></div>
+  </form>
+</div>
 
-    <div class="actions">
-      <a class="button" href="/admin/excel"> 엑셀 다운로드 </a>
+<div class="panel">
+  <h2>좌석 설정</h2>
+  <form action="/admin/seats" method="POST">
+    <div class="field" style="max-width:260px"><label>전체 좌석</label><input type="number" name="total_seats" min="1" value="{{ total_seats }}" required></div>
+    <div class="actions"><button class="button" type="submit">좌석 수 저장</button></div>
+  </form>
+</div>
 
-      <form action="/admin/reset-queue" method="POST">
-        <button class="button danger" type="submit">대기열 초기화</button>
-      </form>
-    </div>
+<div class="panel">
+  <h2>테스트 관리</h2>
+  <div class="actions">
+    <a class="button" href="/admin/excel">엑셀 다운로드</a>
+    <form action="/admin/reset-queue" method="POST"><button class="button secondary" type="submit">대기열만 초기화</button></form>
+    <form action="/admin/reset-test" method="POST" onsubmit="return confirm('신청 기록과 좌석 배정을 전부 초기화합니다. 계속할까요?')"><button class="button danger" type="submit">테스트 전체 초기화</button></form>
+  </div>
+</div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>번호</th>
-          <th>학생 이름</th>
-          <th>학생 전화번호</th>
-          <th>보호자 이름</th>
-          <th>보호자 전화번호</th>
-          <th>인원</th>
-          <th>좌석</th>
-          <th>시간</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        {% for r in reservations %}
-
-        <tr>
-          <td>{{ r.id }}</td>
-          <td>{{ r.student_name }}</td>
-          <td>{{ r.student_phone }}</td>
-          <td>{{ r.parent_name }}</td>
-          <td>{{ r.parent_phone }}</td>
-          <td>{{ r.people_count }}</td>
-          <td>{{ r.seat_numbers }}</td>
-          <td>{{ r.created_at }}</td>
-        </tr>
-
-        {% endfor %}
-      </tbody>
-    </table>
-  </body>
+<div class="panel">
+  <h2>신청 목록</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>번호</th><th>학번</th><th>좌석</th><th>신청 시간</th></tr></thead>
+    <tbody>{% for r in reservations %}<tr><td>{{ r.id }}</td><td>{{ r.student_number }}</td><td>{{ r.seat_number }}</td><td>{{ r.created_at }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+</div></body>
 </html>

@@ -1,126 +1,13 @@
 <!doctype html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <title>신청 완료</title>
-
-    <style>
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-
-        min-height: 100vh;
-
-        display: flex;
-        align-items: center;
-        justify-content: center;
-
-        padding: 20px;
-
-        background: #f5f6f8;
-
-        font-family: Arial, sans-serif;
-      }
-
-      .box {
-        width: 430px;
-
-        padding: 42px 32px;
-
-        background: white;
-
-        border-radius: 18px;
-
-        text-align: center;
-
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-      }
-
-      .check {
-        width: 68px;
-        height: 68px;
-
-        margin: 0 auto 22px;
-
-        border-radius: 50%;
-
-        display: flex;
-        align-items: center;
-        justify-content: center;
-
-        background: #2563eb;
-        color: white;
-
-        font-size: 34px;
-      }
-
-      .seat {
-        margin: 28px 0;
-        padding: 24px;
-
-        background: #eff6ff;
-
-        border-radius: 12px;
-      }
-
-      .seat-number {
-        margin-top: 8px;
-
-        color: #2563eb;
-
-        font-size: 30px;
-        font-weight: bold;
-      }
-
-      button {
-        width: 100%;
-
-        padding: 15px;
-
-        border: 0;
-
-        border-radius: 10px;
-
-        background: #2563eb;
-        color: white;
-
-        font-size: 17px;
-        font-weight: bold;
-
-        cursor: pointer;
-      }
-    </style>
-  </head>
-
-  <body>
-    <div class="box">
-      <div class="check">✓</div>
-
-      <h1>신청 완료</h1>
-
-      <p>{{ student_name }}님의 신청이 완료되었습니다.</p>
-
-      <p>신청 인원 : {{ people_count }}명</p>
-
-      <div class="seat">
-        <div>배정 좌석</div>
-
-        <div class="seat-number">{{ seat_numbers }}</div>
-      </div>
-
-      <button onclick="exitPage()">나가기</button>
-    </div>
-
-    <script>
-      function exitPage() {
-        location.replace("/");
-      }
-    </script>
-  </body>
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>신청 완료</title>
+<style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:#f5f6f8;font-family:Arial,sans-serif}.box{width:430px;background:#fff;padding:42px 32px;border-radius:18px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.08)}.check{width:68px;height:68px;margin:0 auto 22px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#2563eb;color:#fff;font-size:34px}.seat{margin:28px 0;padding:24px;background:#eff6ff;border-radius:12px}.seat-number{margin-top:8px;color:#2563eb;font-size:30px;font-weight:700}button{width:100%;padding:15px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-size:17px;font-weight:700;cursor:pointer}</style>
+</head>
+<body><div class="box">
+<div class="check">✓</div><h1>신청 완료</h1>
+<p><strong>{{ student_number }}</strong> 학번의 신청이 완료되었습니다.</p>
+<div class="seat"><div>배정 좌석</div><div class="seat-number">{{ seat_number }}번</div></div>
+<button onclick="location.replace('/')">나가기</button>
+</div></body>
 </html>

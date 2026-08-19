@@ -1,468 +1,69 @@
 <!doctype html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <title>입시설명회 신청</title>
-
-    <style>
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-
-        background: #f5f6f8;
-
-        font-family: Arial, sans-serif;
-      }
-
-      .container {
-        max-width: 520px;
-
-        margin: 50px auto;
-
-        padding: 0 20px;
-      }
-
-      .box {
-        background: white;
-
-        padding: 32px;
-
-        border-radius: 18px;
-
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.07);
-      }
-
-      h1 {
-        text-align: center;
-      }
-
-      .status {
-        display: flex;
-        justify-content: space-between;
-
-        margin: 22px 0 28px;
-
-        padding: 16px;
-
-        background: #f8fafc;
-
-        border-radius: 10px;
-      }
-
-      .remain {
-        color: #2563eb;
-        font-weight: bold;
-      }
-
-      #timer {
-        color: #dc2626;
-        font-weight: bold;
-      }
-
-      label {
-        display: block;
-
-        margin-top: 18px;
-        margin-bottom: 7px;
-
-        font-weight: bold;
-      }
-
-      input,
-      select {
-        width: 100%;
-
-        padding: 13px;
-
-        border: 1px solid #d1d5db;
-
-        border-radius: 9px;
-
-        font-size: 16px;
-      }
-
-      .phone {
-        display: flex;
-        align-items: center;
-
-        gap: 7px;
-      }
-
-      .phone input {
-        text-align: center;
-        min-width: 0;
-      }
-
-      .submit-btn {
-        width: 100%;
-
-        margin-top: 30px;
-
-        padding: 15px;
-
-        border: 0;
-
-        border-radius: 10px;
-
-        background: #2563eb;
-        color: white;
-
-        font-size: 17px;
-        font-weight: bold;
-
-        cursor: pointer;
-      }
-
-      .submit-btn:disabled {
-        background: #94a3b8;
-      }
-    </style>
-  </head>
-
-  <body>
-    <div class="container">
-      <div class="box">
-        <h1>입시설명회 신청</h1>
-
-        <div class="status">
-          <div>
-            남은 좌석 :
-            <span class="remain"> {{ remaining }}석 </span>
-          </div>
-
-          <div>
-            남은 시간 :
-            <span id="timer"></span>
-          </div>
-        </div>
-
-        <form id="reserveForm" action="/reserve" method="POST">
-          <label> 학생 이름 </label>
-
-          <input
-            id="studentName"
-            type="text"
-            name="student_name"
-            maxlength="20"
-            required
-          />
-
-          <label> 학생 전화번호 </label>
-
-          <div class="phone">
-            <input
-              id="s1"
-              value="010"
-              maxlength="3"
-              inputmode="numeric"
-              required
-            />
-
-            <span>-</span>
-
-            <input id="s2" maxlength="4" inputmode="numeric" required />
-
-            <span>-</span>
-
-            <input id="s3" maxlength="4" inputmode="numeric" required />
-          </div>
-
-          <input type="hidden" id="studentPhone" name="student_phone" />
-
-          <label> 보호자 이름 </label>
-
-          <input
-            id="parentName"
-            type="text"
-            name="parent_name"
-            maxlength="20"
-            required
-          />
-
-          <label> 보호자 전화번호 </label>
-
-          <div class="phone">
-            <input
-              id="p1"
-              value="010"
-              maxlength="3"
-              inputmode="numeric"
-              required
-            />
-
-            <span>-</span>
-
-            <input id="p2" maxlength="4" inputmode="numeric" required />
-
-            <span>-</span>
-
-            <input id="p3" maxlength="4" inputmode="numeric" required />
-          </div>
-
-          <input type="hidden" id="parentPhone" name="parent_phone" />
-
-          <label> 신청 인원 </label>
-
-          <select name="people_count" required>
-            <option value="1">1명</option>
-
-            <option value="2">2명</option>
-          </select>
-
-          <button type="submit" id="submitBtn" class="submit-btn">
-            신청 완료
-          </button>
-        </form>
-      </div>
-    </div>
-
-    <script>
-
-      const form =
-          document.getElementById(
-              "reserveForm"
-          );
-
-      const studentName =
-          document.getElementById(
-              "studentName"
-          );
-
-      const parentName =
-          document.getElementById(
-              "parentName"
-          );
-
-      const s1 =
-          document.getElementById("s1");
-
-      const s2 =
-          document.getElementById("s2");
-
-      const s3 =
-          document.getElementById("s3");
-
-      const p1 =
-          document.getElementById("p1");
-
-      const p2 =
-          document.getElementById("p2");
-
-      const p3 =
-          document.getElementById("p3");
-
-      function numbersOnly(input) {
-
-          input.value =
-              input.value.replace(
-                  /[^0-9]/g,
-                  ""
-              );
-      }
-
-      function autoMove(
-          current,
-          next,
-          length
-      ) {
-
-          current.addEventListener(
-              "input",
-              () => {
-
-                  numbersOnly(
-                      current
-                  );
-
-                  if (
-                      current.value.length
-                      === length
-                  ) {
-                      next.focus();
-                  }
-              }
-          );
-      }
-
-      autoMove(s1, s2, 3);
-      autoMove(s2, s3, 4);
-
-      // 학생 전화 마지막 →
-      // 보호자 이름
-      autoMove(
-          s3,
-          parentName,
-          4
-      );
-
-      autoMove(p1, p2, 3);
-      autoMove(p2, p3, 4);
-
-      p3.addEventListener(
-          "input",
-          () => numbersOnly(p3)
-      );
-
-      function validName(value) {
-
-          return /^[가-힣a-zA-Z\s]{2,20}$/
-              .test(
-                  value.trim()
-              );
-      }
-
-      form.addEventListener(
-          "submit",
-          e => {
-
-              e.preventDefault();
-
-              if (
-                  !validName(
-                      studentName.value
-                  )
-              ) {
-                  alert(
-                      "학생 이름을 정확히 입력해주세요."
-                  );
-
-                  return;
-              }
-
-              if (
-                  !validName(
-                      parentName.value
-                  )
-              ) {
-                  alert(
-                      "보호자 이름을 정확히 입력해주세요."
-                  );
-
-                  return;
-              }
-
-              if (
-                  s1.value.length !== 3 ||
-                  s2.value.length < 3 ||
-                  s2.value.length > 4 ||
-                  s3.value.length !== 4
-              ) {
-                  alert(
-                      "학생 전화번호를 확인해주세요."
-                  );
-
-                  return;
-              }
-
-              if (
-                  p1.value.length !== 3 ||
-                  p2.value.length < 3 ||
-                  p2.value.length > 4 ||
-                  p3.value.length !== 4
-              ) {
-                  alert(
-                      "보호자 전화번호를 확인해주세요."
-                  );
-
-                  return;
-              }
-
-              document
-                  .getElementById(
-                      "studentPhone"
-                  )
-                  .value =
-                      `${s1.value}-${s2.value}-${s3.value}`;
-
-              document
-                  .getElementById(
-                      "parentPhone"
-                  )
-                  .value =
-                      `${p1.value}-${p2.value}-${p3.value}`;
-
-              document
-                  .getElementById(
-                      "submitBtn"
-                  )
-                  .disabled = true;
-
-              form.submit();
-          }
-      );
-
-
-      // =========================
-      // 타이머
-      // =========================
-
-      let remainingTime =
-          {{ remaining_time }};
-
-      let timerFinished = false;
-
-      async function expire() {
-
-          if (timerFinished) {
-              return;
-          }
-
-          timerFinished = true;
-
-          try {
-
-              await fetch(
-                  "/leave",
-                  {
-                      method: "POST"
-                  }
-              );
-
-          } catch (e) {
-              console.error(e);
-          }
-
-          location.replace("/");
-      }
-
-
-      function updateTimer() {
-
-          const min =
-              Math.floor(
-                  remainingTime / 60
-              );
-
-          const sec =
-              remainingTime % 60;
-
-          document
-              .getElementById(
-                  "timer"
-              )
-              .textContent =
-                  `${min}:${String(sec).padStart(2, "0")}`;
-
-          if (remainingTime <= 0) {
-              expire();
-              return;
-          }
-
-          remainingTime--;
-      }
-
-      updateTimer();
-
-      setInterval(
-          updateTimer,
-          1000
-      );
-    </script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>티켓팅 신청</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f5f6f8;font-family:Arial,sans-serif}.container{max-width:520px;margin:70px auto;padding:0 20px}.box{background:#fff;padding:34px;border-radius:18px;box-shadow:0 8px 30px rgba(0,0,0,.07)}h1{text-align:center;margin-top:0}.status{display:flex;justify-content:space-between;margin:22px 0 30px;padding:16px;background:#f8fafc;border-radius:10px}.remain{color:#2563eb;font-weight:700}#timer{color:#dc2626;font-weight:700}label{display:block;margin:18px 0 8px;font-weight:700}input{width:100%;padding:16px;border:1px solid #d1d5db;border-radius:10px;font-size:22px;text-align:center;letter-spacing:4px}input:focus{outline:none;border-color:#2563eb}.submit-btn{width:100%;margin-top:26px;padding:15px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-size:17px;font-weight:700;cursor:pointer}.submit-btn:disabled{background:#94a3b8}.hint{margin-top:14px;color:#64748b;font-size:13px;text-align:center}
+  </style>
+</head>
+<body>
+<div class="container"><div class="box">
+  <h1>학생 티켓팅 테스트</h1>
+  <div class="status">
+    <div>남은 좌석 <span class="remain">{{ remaining }}석</span></div>
+    <div>남은 시간 <span id="timer"></span></div>
+  </div>
+
+  <form id="reserveForm" action="/reserve" method="POST">
+    <label for="studentNumber">학번</label>
+    <input id="studentNumber" name="student_number" type="text" maxlength="5" inputmode="numeric" autocomplete="off" placeholder="예: 21121" required autofocus />
+    <div class="hint">숫자 5자리 학번만 입력해주세요.</div>
+    <button id="submitBtn" class="submit-btn" type="submit">신청하기</button>
+  </form>
+</div></div>
+
+<script>
+  const form = document.getElementById("reserveForm");
+  const input = document.getElementById("studentNumber");
+  const submitBtn = document.getElementById("submitBtn");
+
+  input.addEventListener("input", () => {
+    input.value = input.value.replace(/[^0-9]/g, "").slice(0, 5);
+  });
+
+  form.addEventListener("submit", (e) => {
+    if (!/^\d{5}$/.test(input.value)) {
+      e.preventDefault();
+      alert("학번을 숫자 5자리로 입력해주세요.");
+      input.focus();
+      return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = "처리 중...";
+  });
+
+  let remainingTime = {{ remaining_time }};
+  let finished = false;
+
+  async function expire() {
+    if (finished) return;
+    finished = true;
+    try { await fetch("/leave", { method: "POST" }); } catch(e) {}
+    location.replace("/");
+  }
+
+  function tick() {
+    const min = Math.floor(remainingTime / 60);
+    const sec = remainingTime % 60;
+    document.getElementById("timer").textContent = `${min}:${String(sec).padStart(2,"0")}`;
+    if (remainingTime <= 0) return expire();
+    remainingTime--;
+  }
+
+  tick();
+  setInterval(tick, 1000);
+</script>
+</body>
 </html>

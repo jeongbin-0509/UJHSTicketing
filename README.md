@@ -1,31 +1,67 @@
-# UJHS Student Ticketing Test
+# UJHS Admission Ticketing - Optimized
 
-학생 대상 티켓팅 부하/대기열 테스트 버전입니다.
+운정고 입시설명회 티켓팅용 성능 개선 버전입니다.
 
-## 변경점
-- 메인 화면은 관리자 설정 오픈 시간 전에는 잠김
-- 오픈 시간 도달 시 메인 버튼 자동 활성화
-- 서버에서도 오픈 시간을 검사하므로 URL 직접 접근 차단
-- 신청 정보는 학번 5자리만 입력
-- `test_reservations` 테이블에 학번/좌석/시간 저장
-- 관리자 페이지에서 오픈/마감 시간, 총 좌석 수 변경 가능
-- 테스트 전체 초기화 및 엑셀 다운로드 가능
+## 입력 항목
+
+기존 입시설명회 신청 형식으로 복구했습니다.
+
+- 학생 이름
+- 학생 전화번호
+- 보호자 이름
+- 보호자 전화번호
+- 신청 인원: 1명 / 2명
+- 학생 전화번호 기준 중복 신청 방지
+- 인원 수만큼 연속 좌석 자동 배정
+
+## 성능 개선
+
+- PostgreSQL `ThreadedConnectionPool` 재사용
+- 메인 표시 데이터: local cache -> Redis -> Supabase
+- `/queue/status` 정상 경로에서 Supabase 직접 조회 없음
+- 대기열 앞쪽 사용자만 admission lock 시도
+- adaptive polling + jitter
+- 최종 좌석 배정은 PostgreSQL `FOR UPDATE` transaction 유지
+- `/healthz` 제공
+
+## 환경변수
+
+기존 `.env` 값에 아래를 추가하는 것을 권장합니다.
+
+```env
+DB_POOL_MIN=1
+DB_POOL_MAX=8
+DB_POOL_WAIT_SECONDS=5
+LOCAL_CACHE_SECONDS=1
+REDIS_KEY_PREFIX=ticket:v3
+```
+
+비밀키/DB 비밀번호/Redis 토큰은 저장소에 올리지 마세요.
 
 ## Supabase
-`supabase_setup_test.sql`을 SQL Editor에서 한 번 실행하세요.
 
-## 실행
+SQL Editor에서 `supabase_setup.sql`을 실행합니다.
+기존 `test_reservations` 테이블은 새 코드에서 사용하지 않습니다. 실제 신청은 `reservations` 테이블에 저장됩니다.
+
+## Render Start Command
+
 ```bash
-pip install -r requirements.txt
-python app.py
+gunicorn app:app --workers 2 --threads 8 --timeout 60 --keep-alive 5 --max-requests 2000 --max-requests-jitter 200
 ```
 
-관리자: `/admin`
+`--preload`는 사용하지 마세요.
 
-## Render
-Start Command:
-```bash
-gunicorn app:app --workers 2 --threads 4 --timeout 60
+Health Check Path:
+
+```text
+/healthz
 ```
 
-환경변수는 `.env.example` 항목을 Render Environment에 등록하세요.
+## k6 테스트
+
+```powershell
+$env:BASE_URL="https://실제주소"
+k6 run .\load_test_home.js
+```
+
+10 VU부터 시작해서 50 -> 100 -> 200 순으로 올리세요.

@@ -9,7 +9,7 @@
     content="width=device-width, initial-scale=1.0"
   >
 
-  <title>운정고 티켓팅 테스트</title>
+  <title>운정고 입시설명회 티켓팅</title>
 
   <style>
     * {
@@ -192,11 +192,11 @@
     <div class="top">
 
       <div class="tag">
-        운정고 티켓팅 테스트 사이트
+        운정고 입시설명회 티켓팅 사이트
       </div>
 
       <h1>
-        운정고 티켓팅 시스템 테스트
+        운정고 입시설명회 신청
       </h1>
 
       <!-- 판매 상태 -->
@@ -218,7 +218,7 @@
 
         {% elif sale_state == 'closed' %}
 
-          테스트가 종료되었습니다.
+          신청이 종료되었습니다.
 
         {% else %}
 
@@ -282,7 +282,7 @@
   <section class="notice">
 
     <strong>
-      테스트 안내
+      신청 안내
     </strong>
 
     <br><br>
@@ -293,10 +293,10 @@
     · 오픈 시간이 되면 입장 버튼이 자동으로 활성화됩니다.
     <br>
 
-    · 신청창에서는 학번 5자리만 입력하면 됩니다.
+    · 신청창에서 학생/보호자 정보와 신청 인원을 입력합니다.
     <br>
 
-    · 같은 학번으로는 한 번만 신청할 수 있습니다.
+    · 같은 학생 전화번호로는 한 번만 신청할 수 있습니다.
 
   </section>
 
@@ -394,7 +394,7 @@
     // =========================
 
     if (now < openAt) {
-      addEventListener.disabled = true;
+      button.disabled = true;
       button.textContent = "오픈 대기";
 
       statusBox.className = "sale-status before";
@@ -420,7 +420,7 @@
         "sale-status closed";
 
       statusBox.textContent =
-        "테스트가 종료되었습니다.";
+        "신청이 종료되었습니다.";
 
       return;
     }

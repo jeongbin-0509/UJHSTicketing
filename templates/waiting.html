@@ -1,74 +1,136 @@
 <!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>예매 대기</title>
-  <style>
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;justify-content:center;align-items:center;background:#f5f6f8;font-family:Arial,sans-serif;padding:20px}.box{width:440px;background:#fff;border-radius:18px;padding:42px 32px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.08)}.loader{width:55px;height:55px;margin:30px auto;border:6px solid #e5e7eb;border-top-color:#2563eb;border-radius:50%;animation:spin .9s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.position{color:#2563eb;font-size:20px;font-weight:700}.number{margin-top:12px;color:#555}.description{margin-top:28px;color:#666;font-size:14px;line-height:1.7}
-  </style>
-</head>
-<body>
-<div class="box">
-  <h1>예매 대기 중입니다</h1>
-  <div class="loader"></div>
-  <div id="position" class="position">대기 순서를 확인하고 있습니다.</div>
-  <div id="queueNumber" class="number"></div>
-  <div class="description">접속 순서대로 예매 페이지에 입장합니다.<br>이 페이지를 닫지 말고 기다려 주세요.</div>
-</div>
-<script>
-let checking=false;
-let moving=false;
-let timer=null;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>예매 대기</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #f5f6f8;
+        font-family: Arial, sans-serif;
+        padding: 20px;
+      }
+      .box {
+        width: 440px;
+        background: #fff;
+        border-radius: 18px;
+        padding: 42px 32px;
+        text-align: center;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+      }
+      .loader {
+        width: 55px;
+        height: 55px;
+        margin: 30px auto;
+        border: 6px solid #e5e7eb;
+        border-top-color: #2563eb;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .position {
+        color: #2563eb;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .number {
+        margin-top: 12px;
+        color: #555;
+      }
+      .description {
+        margin-top: 28px;
+        color: #666;
+        font-size: 14px;
+        line-height: 1.7;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <h1>예매 대기 중입니다</h1>
+      <div class="loader"></div>
+      <div id="position" class="position">대기 순서를 확인하고 있습니다.</div>
+      <div id="queueNumber" class="number"></div>
+      <div class="description">
+        접속 순서대로 예매 페이지에 입장합니다.<br />이 페이지를 닫지 말고
+        기다려 주세요.
+      </div>
+    </div>
+    <script>
+      let checking = false;
+      let moving = false;
+      let timer = null;
 
-function nextDelay(count){
-  // 뒤쪽 사용자는 천천히, 입장 직전 사용자만 빠르게 확인한다.
-  if(count<=3) return 350;
-  if(count<=10) return 700;
-  if(count<=30) return 1200;
-  if(count<=100) return 2500;
-  if(count<=300) return 5000;
-  return 8000;
-}
+      function nextDelay(count) {
+        // 뒤쪽 사용자는 천천히, 입장 직전 사용자만 빠르게 확인.
+        if (count <= 3) return 350;
+        if (count <= 10) return 700;
+        if (count <= 30) return 1200;
+        if (count <= 100) return 2500;
+        if (count <= 300) return 5000;
+        return 8000;
+      }
 
-function scheduleNext(ms){
-  // 모든 브라우저 요청이 같은 순간에 몰리지 않도록 jitter 추가
-  const jitter=Math.floor(Math.random()*250);
-  clearTimeout(timer);
-  timer=setTimeout(checkQueue,ms+jitter);
-}
+      function scheduleNext(ms) {
+        // 모든 브라우저 요청이 같은 순간에 몰리지 않도록 jitter 추가
+        const jitter = Math.floor(Math.random() * 250);
+        clearTimeout(timer);
+        timer = setTimeout(checkQueue, ms + jitter);
+      }
 
-async function checkQueue(){
-  if(checking||moving) return;
-  checking=true;
-  try{
-    const response=await fetch('/queue/status',{cache:'no-store'});
-    if(response.status===401){location.replace('/');return;}
-    const data=await response.json();
-    if(!data.valid){location.replace('/');return;}
+      async function checkQueue() {
+        if (checking || moving) return;
+        checking = true;
+        try {
+          const response = await fetch("/queue/status", { cache: "no-store" });
+          if (response.status === 401) {
+            location.replace("/");
+            return;
+          }
+          const data = await response.json();
+          if (!data.valid) {
+            location.replace("/");
+            return;
+          }
 
-    document.getElementById('queueNumber').textContent=`대기번호 ${data.queue_no}번`;
+          document.getElementById("queueNumber").textContent =
+            `대기번호 ${data.queue_no}번`;
 
-    if(data.can_enter){
-      moving=true;
-      document.getElementById('position').textContent='예매 페이지로 이동합니다.';
-      location.replace('/apply');
-      return;
-    }
+          if (data.can_enter) {
+            moving = true;
+            document.getElementById("position").textContent =
+              "예매 페이지로 이동합니다.";
+            location.replace("/apply");
+            return;
+          }
 
-    const count=Number(data.waiting_count||0);
-    document.getElementById('position').textContent=`앞에 ${count}명이 있습니다.`;
-    scheduleNext(nextDelay(count));
-  }catch(error){
-    console.error(error);
-    document.getElementById('position').textContent='서버에 다시 연결하고 있습니다.';
-    scheduleNext(3000);
-  }finally{
-    checking=false;
-  }
-}
+          const count = Number(data.waiting_count || 0);
+          document.getElementById("position").textContent =
+            `앞에 ${count}명이 있습니다.`;
+          scheduleNext(nextDelay(count));
+        } catch (error) {
+          console.error(error);
+          document.getElementById("position").textContent =
+            "서버에 다시 연결하고 있습니다.";
+          scheduleNext(3000);
+        } finally {
+          checking = false;
+        }
+      }
 
-checkQueue();
-</script>
-</body>
+      checkQueue();
+    </script>
+  </body>
 </html>

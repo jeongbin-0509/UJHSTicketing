@@ -15,21 +15,8 @@ import psycopg2.extras
 from psycopg2 import extensions
 from psycopg2.pool import PoolError, ThreadedConnectionPool
 from dotenv import load_dotenv
-from flask import (
-    Flask,
-    Response,
-    jsonify,
-    redirect,
-    render_template,
-    request,
-    send_file,
-    session,
-)
+from flask import (Flask, Response, jsonify, redirect, render_template, request, send_file, session,)
 from upstash_redis import Redis
-
-# =========================================================
-# ENV / APP
-# =========================================================
 
 load_dotenv()
 
@@ -58,21 +45,14 @@ APPLY_TIME_LIMIT = int(os.getenv("APPLY_TIME_LIMIT", "180"))
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-me")
 
-# Gunicorn worker 하나당 생성되는 pool이다.
-# workers=2, DB_POOL_MAX=8이면 전체 최대 약 16개 연결.
 DB_POOL_MIN = max(1, int(os.getenv("DB_POOL_MIN", "1")))
 DB_POOL_MAX = max(DB_POOL_MIN, int(os.getenv("DB_POOL_MAX", "8")))
 DB_POOL_WAIT_SECONDS = float(os.getenv("DB_POOL_WAIT_SECONDS", "5"))
-
-# 한 worker 안에서는 이 시간 동안 Redis조차 다시 읽지 않는다.
 LOCAL_CACHE_SECONDS = float(os.getenv("LOCAL_CACHE_SECONDS", "1"))
 
 KST = ZoneInfo("Asia/Seoul")
 
-# =========================================================
 # REDIS
-# =========================================================
-
 redis = Redis(
     url=UPSTASH_REDIS_REST_URL,
     token=UPSTASH_REDIS_REST_TOKEN,
@@ -86,12 +66,6 @@ LOCK_KEY = f"{KEY_PREFIX}:admit_lock"
 SALE_CACHE_KEY = f"{KEY_PREFIX}:sale"
 SEAT_CACHE_KEY = f"{KEY_PREFIX}:seat"
 
-# =========================================================
-# DATABASE CONNECTION POOL
-# =========================================================
-
-# 중요: Gunicorn에서는 --preload 옵션을 사용하지 않는다.
-# 각 worker가 자기 pool을 생성해야 안전하다.
 _db_pool = ThreadedConnectionPool(
     minconn=DB_POOL_MIN,
     maxconn=DB_POOL_MAX,
@@ -153,10 +127,6 @@ def release_db(conn, discard=False):
         _db_slots.release()
 
 
-# =========================================================
-# SMALL LOCAL CACHES
-# =========================================================
-
 _local_sale = {"expires": 0.0, "data": None}
 _local_seat = {"expires": 0.0, "data": None}
 
@@ -184,11 +154,6 @@ def _redis_json_get(key):
 
 def _redis_json_set(key, data):
     redis.set(key, json.dumps(data, separators=(",", ":")))
-
-
-# =========================================================
-# SALE / SEAT CACHE
-# =========================================================
 
 
 def _load_sale_from_db():
@@ -305,12 +270,6 @@ def get_remaining_seats():
     data = get_seat_snapshot()
     return max(int(data["total"]) - int(data["next"]) + 1, 0)
 
-
-# =========================================================
-# DATE HELPERS
-# =========================================================
-
-
 def dt_local_value(dt):
     if not dt:
         return ""
@@ -322,12 +281,6 @@ def parse_kst_datetime(value):
         return None
     naive = datetime.strptime(value, "%Y-%m-%dT%H:%M")
     return naive.replace(tzinfo=KST).astimezone(timezone.utc)
-
-
-# =========================================================
-# REDIS QUEUE
-# =========================================================
-
 
 def now_ts():
     return int(time.time())
@@ -439,12 +392,6 @@ def clear_session():
     ]:
         session.pop(key, None)
 
-
-# =========================================================
-# AUTH / VALIDATION
-# =========================================================
-
-
 def admin_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -471,31 +418,17 @@ def valid_name(value):
 def valid_phone(value):
     return bool(re.fullmatch(r"01[0-9]-\d{3,4}-\d{4}", value or ""))
 
-
-# =========================================================
-# STARTUP CACHE WARMUP
-# =========================================================
-
-
 def warm_shared_caches():
     """worker 시작 시 DB pool의 연결을 이용해 표시용 cache를 미리 준비한다."""
     try:
         _load_sale_from_db()
         _load_seat_from_db()
     except Exception as error:
-        # DB가 잠깐 불안정해도 worker 자체는 기동시킨다.
-        # 첫 실제 요청에서 다시 cache를 채운다.
         print("CACHE WARMUP WARNING:", repr(error))
-
 
 warm_shared_caches()
 
-
-# =========================================================
-# ERROR / HEALTH
-# =========================================================
-
-
+# error / health
 @app.errorhandler(DatabaseBusyError)
 def handle_db_busy(_error):
     return "현재 접속자가 많습니다. 잠시 후 다시 시도해주세요.", 503
@@ -503,15 +436,11 @@ def handle_db_busy(_error):
 
 @app.route("/healthz")
 def healthz():
-    # Render health check용: 외부 DB/Redis를 건드리지 않는다.
+    # Render check용
     return jsonify({"ok": True}), 200
 
 
-# =========================================================
-# MAIN
-# =========================================================
-
-
+# main
 @app.route("/")
 def index():
     old_token = session.get("queue_token")
@@ -519,7 +448,7 @@ def index():
         remove_user(old_token)
     clear_session()
 
-    # 대부분 local/Redis cache에서 끝나므로 DB 연결을 만들지 않는다.
+    # 대부분 local/Redis cache에서 끝나므로 DB 연결을 만들지 x
     remaining = get_remaining_seats()
     sale = get_sale_state()
 
@@ -545,11 +474,7 @@ def index():
     )
 
 
-# =========================================================
-# ENTER
-# =========================================================
-
-
+# enter
 @app.route("/enter")
 def enter():
     # DB 조회 없음. schedule은 local/Redis cache.
@@ -575,11 +500,8 @@ def enter():
     return redirect("/apply" if user_is_active(token) else "/waiting")
 
 
-# =========================================================
-# WAITING / STATUS
-# =========================================================
 
-
+# waiting / status
 @app.route("/waiting")
 def waiting():
     token = session.get("queue_token")
@@ -631,8 +553,8 @@ def queue_status():
     if rank is None:
         return jsonify({"valid": False})
 
-    # 맨 앞 소수만 admit 로직을 시도한다.
-    # 1000명이 동시에 lock을 두드리는 현상을 막는다.
+    # 맨 앞 소수만 admit 로직을 시도.
+    # 1000명이 동시에 lock을 두드리는 현상을 막음.
     if rank < 3:
         admit_users()
         expiry = get_active_expiry(token)
@@ -659,11 +581,7 @@ def queue_status():
     )
 
 
-# =========================================================
-# APPLY / LEAVE
-# =========================================================
-
-
+# apply / leave
 @app.route("/apply")
 def apply():
     token = session.get("queue_token")
@@ -713,11 +631,6 @@ def leave():
     return jsonify({"ok": True})
 
 
-# =========================================================
-# RESERVE
-# =========================================================
-
-
 @app.route("/reserve", methods=["POST"])
 def reserve():
     token = session.get("queue_token")
@@ -757,7 +670,7 @@ def reserve():
         conn = get_db()
         cur = conn.cursor()
 
-        # 최종 좌석 배정만 DB transaction + row lock으로 처리한다.
+        # 최종 좌석 배정만 DB transaction + row lock으로 처리.
         cur.execute(
             """
             SELECT next_seat, total_seats
@@ -815,7 +728,7 @@ def reserve():
         )
         conn.commit()
 
-        # DB commit 뒤 표시용 cache 동기화
+        # DB 커밋 뒤 표시용 cache 동기화
         set_seat_snapshot(next_seat + people_count, total_seats)
 
     except psycopg2.errors.UniqueViolation:
@@ -854,11 +767,7 @@ def reserve():
     return redirect("/success")
 
 
-# =========================================================
-# SUCCESS
-# =========================================================
-
-
+# 성공
 @app.route("/success")
 def success():
     if not session.get("completed"):
@@ -881,11 +790,7 @@ def success():
     )
 
 
-# =========================================================
-# ADMIN
-# =========================================================
-
-
+# admin
 @app.route("/admin")
 @admin_required
 def admin():
@@ -926,7 +831,7 @@ def admin():
     total = int(seat["total_seats"])
     used = int(seat["next_seat"]) - 1
     remaining = max(total - used, 0)
-    # admin DB 값을 cache와 먼저 맞춘 뒤 상태를 계산한다.
+    # admin DB 값을 cache와 먼저 맞춘 뒤 상태를 계산.
     set_seat_snapshot(int(seat["next_seat"]), total)
     if settings:
         set_sale_schedule_cache(settings["open_at"], settings["close_at"])
@@ -1105,11 +1010,7 @@ def debug_queue():
         }
     )
 
-
-# =========================================================
-# LOCAL DEV
-# =========================================================
-
+# 로컬
 if __name__ == "__main__":
     print("=" * 42)
     print(" UJHS STUDENT TICKETING - OPTIMIZED")

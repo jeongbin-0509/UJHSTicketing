@@ -45,6 +45,48 @@
         font-size: 20px;
         font-weight: 700;
       }
+      .live-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        margin-top: 12px;
+        color: #16803c;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .live-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #22c55e;
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
+        animation: pulse 1.6s infinite;
+      }
+      @keyframes pulse {
+        70% {
+          box-shadow: 0 0 0 7px rgba(34, 197, 94, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+        }
+      }
+      .updated-at {
+        min-height: 18px;
+        margin-top: 4px;
+        color: #9ca3af;
+        font-size: 12px;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
       .number {
         margin-top: 12px;
         color: #555;
@@ -55,13 +97,26 @@
         font-size: 14px;
         line-height: 1.7;
       }
+      @media (prefers-reduced-motion: reduce) {
+        .live-dot {
+          animation: none;
+        }
+      }
     </style>
   </head>
   <body>
     <div class="box">
       <h1>예매 대기 중입니다</h1>
       <div class="loader"></div>
-      <div id="position" class="position">대기 순서를 확인하고 있습니다.</div>
+      <div id="position" class="position">
+        대기 순서를 확인하고 있습니다.
+      </div>
+      <div id="positionAnnouncement" class="sr-only" aria-live="polite"></div>
+      <div class="live-status">
+        <span class="live-dot" aria-hidden="true"></span>
+        <span id="liveText">실시간 순번 확인 중</span>
+      </div>
+      <div id="updatedAt" class="updated-at"></div>
       <div id="queueNumber" class="number"></div>
       <div class="description">
         접속 순서대로 예매 페이지에 입장합니다.<br />이 페이지를 닫지 말고
@@ -72,6 +127,50 @@
       let checking = false;
       let moving = false;
       let timer = null;
+      let displayedCount = null;
+      let countAnimation = null;
+
+      function setPositionCount(count) {
+        document.getElementById("position").textContent =
+          `앞에 ${count.toLocaleString("ko-KR")}명이 있습니다.`;
+      }
+
+      function animatePositionCount(nextCount) {
+        if (countAnimation) cancelAnimationFrame(countAnimation);
+        if (displayedCount === null || nextCount >= displayedCount) {
+          displayedCount = nextCount;
+          setPositionCount(nextCount);
+          document.getElementById("positionAnnouncement").textContent =
+            `앞에 ${nextCount}명이 있습니다.`;
+          return;
+        }
+
+        const startCount = displayedCount;
+        const startedAt = performance.now();
+        const duration = Math.min(700, Math.max(220, (startCount - nextCount) * 24));
+
+        function frame(now) {
+          const progress = Math.min((now - startedAt) / duration, 1);
+          displayedCount = Math.round(startCount + (nextCount - startCount) * progress);
+          setPositionCount(displayedCount);
+          if (progress < 1) {
+            countAnimation = requestAnimationFrame(frame);
+          } else {
+            displayedCount = nextCount;
+            countAnimation = null;
+            document.getElementById("positionAnnouncement").textContent =
+              `앞에 ${nextCount}명이 있습니다.`;
+          }
+        }
+
+        countAnimation = requestAnimationFrame(frame);
+      }
+
+      function markUpdated() {
+        document.getElementById("liveText").textContent = "실시간 순번 반영 중";
+        document.getElementById("updatedAt").textContent =
+          `${new Date().toLocaleTimeString("ko-KR")} 갱신`;
+      }
 
       function nextDelay(count) {
         // 뒤쪽 사용자는 천천히, 입장 직전 사용자만 빠르게 확인.
@@ -117,13 +216,15 @@
           }
 
           const count = Number(data.waiting_count || 0);
-          document.getElementById("position").textContent =
-            `앞에 ${count}명이 있습니다.`;
+          animatePositionCount(count);
+          markUpdated();
           scheduleNext(nextDelay(count));
         } catch (error) {
           console.error(error);
           document.getElementById("position").textContent =
             "서버에 다시 연결하고 있습니다.";
+          document.getElementById("liveText").textContent = "연결 재시도 중";
+          document.getElementById("updatedAt").textContent = "";
           scheduleNext(3000);
         } finally {
           checking = false;

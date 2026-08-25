@@ -552,6 +552,25 @@
       let remainingTime =
           {{ remaining_time }};
 
+      async function heartbeat() {
+          try {
+              const response = await fetch(
+                  "/heartbeat",
+                  { method: "POST", cache: "no-store" }
+              );
+              const data = await response.json();
+              if (!response.ok || !data.valid) {
+                  location.replace("/");
+                  return;
+              }
+              // 서버의 절대 마감 시각을 기준으로 브라우저 타이머 오차를 보정한다.
+              remainingTime = Number(data.remaining_time || 0);
+          } catch (error) {
+              // 일시적인 네트워크 실패 한 번으로 사용자를 내보내지 않는다.
+              console.error("heartbeat failed", error);
+          }
+      }
+
 
       function updateTimer() {
 
@@ -607,6 +626,13 @@
 
 
       updateTimer();
+
+      heartbeat();
+
+      setInterval(
+          heartbeat,
+          5000
+      );
 
       setInterval(
           updateTimer,

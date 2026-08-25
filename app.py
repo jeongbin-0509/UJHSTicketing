@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import re
 import threading
 import time
@@ -49,6 +50,13 @@ DB_POOL_MIN = max(1, int(os.getenv("DB_POOL_MIN", "1")))
 DB_POOL_MAX = max(DB_POOL_MIN, int(os.getenv("DB_POOL_MAX", "8")))
 DB_POOL_WAIT_SECONDS = float(os.getenv("DB_POOL_WAIT_SECONDS", "5"))
 LOCAL_CACHE_SECONDS = float(os.getenv("LOCAL_CACHE_SECONDS", "1"))
+ACTIVE_HEARTBEAT_TTL = int(os.getenv("ACTIVE_HEARTBEAT_TTL", "15"))
+ADMIT_TRIGGER_RATE = float(os.getenv("ADMIT_TRIGGER_RATE", "0.02"))
+
+if ACTIVE_HEARTBEAT_TTL < 2:
+    raise RuntimeError("ACTIVE_HEARTBEAT_TTL은 2초 이상이어야 합니다.")
+if not 0 <= ADMIT_TRIGGER_RATE <= 1:
+    raise RuntimeError("ADMIT_TRIGGER_RATE는 0과 1 사이여야 합니다.")
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -61,6 +69,7 @@ redis = Redis(
 KEY_PREFIX = os.getenv("REDIS_KEY_PREFIX", "ticket:v3")
 WAITING_KEY = f"{KEY_PREFIX}:waiting"
 ACTIVE_KEY = f"{KEY_PREFIX}:active"
+ACTIVE_DEADLINE_KEY = f"{KEY_PREFIX}:active_deadline"
 LAST_NUMBER_KEY = f"{KEY_PREFIX}:last_number"
 LOCK_KEY = f"{KEY_PREFIX}:admit_lock"
 SALE_CACHE_KEY = f"{KEY_PREFIX}:sale"
@@ -287,7 +296,8 @@ def now_ts():
 
 
 def cleanup_expired_active():
-    redis.zremrangebyscore(ACTIVE_KEY, 0, now_ts())
+    # Lua가 heartbeat ZSET과 실제 마감 HASH를 함께 정리한다.
+    admit_users()
 
 
 def active_count():
@@ -299,59 +309,92 @@ def waiting_count():
     return int(redis.zcard(WAITING_KEY) or 0)
 
 
-def acquire_lock():
-    lock_id = str(uuid.uuid4())
-    ok = redis.set(LOCK_KEY, lock_id, nx=True, ex=3)
-    return lock_id if ok else None
-
-
-def release_lock(lock_id):
-    if not lock_id:
-        return
-    # 만료 후 다른 요청이 lock을 잡았을 때 잘못 DEL하지 않기 위한 확인
-    if redis.get(LOCK_KEY) == lock_id:
-        redis.delete(LOCK_KEY)
-
-
 def admit_users():
-    """빈 신청 슬롯만큼 앞 대기자를 active로 이동. DB는 절대 호출하지 않는다."""
-    lock_id = acquire_lock()
-    if not lock_id:
-        return 0
+    """만료 정리와 waiting -> active 이동을 Redis 안에서 원자 처리한다."""
+    script = """
+    local now = tonumber(ARGV[1])
+    local max_active = tonumber(ARGV[2])
+    local heartbeat_expiry = now + tonumber(ARGV[3])
+    local apply_deadline = now + tonumber(ARGV[4])
 
-    admitted = 0
-    try:
-        cleanup_expired_active()
-        current_active = int(redis.zcard(ACTIVE_KEY) or 0)
-        slots = MAX_ACTIVE - current_active
-        if slots <= 0:
-            return 0
+    local expired = redis.call('ZRANGEBYSCORE', KEYS[2], '-inf', now)
+    if #expired > 0 then
+        redis.call('ZREM', KEYS[2], unpack(expired))
+        redis.call('HDEL', KEYS[3], unpack(expired))
+    end
 
-        users = redis.zrange(WAITING_KEY, 0, slots - 1) or []
-        if not users:
-            return 0
+    local slots = max_active - redis.call('ZCARD', KEYS[2])
+    if slots <= 0 then return 0 end
 
-        expire_at = now_ts() + APPLY_TIME_LIMIT
-        for token in users:
-            redis.zrem(WAITING_KEY, token)
-            redis.zadd(ACTIVE_KEY, {token: expire_at})
-            admitted += 1
-        return admitted
-    finally:
-        release_lock(lock_id)
+    local users = redis.call('ZRANGE', KEYS[1], 0, slots - 1)
+    for _, token in ipairs(users) do
+        redis.call('ZADD', KEYS[2], heartbeat_expiry, token)
+        redis.call('HSET', KEYS[3], token, apply_deadline)
+        redis.call('ZREM', KEYS[1], token)
+    end
+    return #users
+    """
+    return int(redis.eval(
+        script,
+        keys=[WAITING_KEY, ACTIVE_KEY, ACTIVE_DEADLINE_KEY],
+        args=[str(now_ts()), str(MAX_ACTIVE), str(ACTIVE_HEARTBEAT_TTL), str(APPLY_TIME_LIMIT)],
+    ) or 0)
 
 
 def get_active_expiry(token):
     if not token:
         return None
-    score = redis.zscore(ACTIVE_KEY, token)
-    if score is None:
+    heartbeat_expiry = redis.zscore(ACTIVE_KEY, token)
+    deadline = redis.hget(ACTIVE_DEADLINE_KEY, token)
+    if heartbeat_expiry is None:
         return None
-    expiry = int(float(score))
-    if expiry <= now_ts():
+    now = now_ts()
+    # 배포 직전 active 사용자는 기존 ZSET score가 실제 마감이었다.
+    # HASH가 없으면 그 값을 deadline으로 승격해 진행 중인 신청을 보존한다.
+    if deadline is None and int(float(heartbeat_expiry)) > now:
+        deadline = int(float(heartbeat_expiry))
+        redis.hset(ACTIVE_DEADLINE_KEY, token, deadline)
+        redis.zadd(ACTIVE_KEY, {token: now + ACTIVE_HEARTBEAT_TTL})
+        heartbeat_expiry = now + ACTIVE_HEARTBEAT_TTL
+    if int(float(heartbeat_expiry)) <= now or int(deadline) <= now:
         redis.zrem(ACTIVE_KEY, token)
+        redis.hdel(ACTIVE_DEADLINE_KEY, token)
         return None
-    return expiry
+    return int(deadline)
+
+
+def refresh_active_heartbeat(token):
+    """살아 있는 active 사용자만 TTL을 연장하고 절대 마감은 유지한다."""
+    if not token:
+        return None
+    script = """
+    local score = redis.call('ZSCORE', KEYS[1], ARGV[1])
+    local deadline = redis.call('HGET', KEYS[2], ARGV[1])
+    local now = tonumber(ARGV[2])
+    if not score or tonumber(score) <= now then
+        redis.call('ZREM', KEYS[1], ARGV[1])
+        redis.call('HDEL', KEYS[2], ARGV[1])
+        return false
+    end
+    -- 구버전 active score(180초 마감)를 새 HASH 구조로 무중단 승격한다.
+    if not deadline then
+        deadline = score
+        redis.call('HSET', KEYS[2], ARGV[1], deadline)
+    end
+    if tonumber(deadline) <= now then
+        redis.call('ZREM', KEYS[1], ARGV[1])
+        redis.call('HDEL', KEYS[2], ARGV[1])
+        return false
+    end
+    redis.call('ZADD', KEYS[1], now + tonumber(ARGV[3]), ARGV[1])
+    return deadline
+    """
+    result = redis.eval(
+        script,
+        keys=[ACTIVE_KEY, ACTIVE_DEADLINE_KEY],
+        args=[token, str(now_ts()), str(ACTIVE_HEARTBEAT_TTL)],
+    )
+    return int(result) if result else None
 
 
 def user_is_active(token):
@@ -372,11 +415,13 @@ def remove_user(token):
         return
     redis.zrem(WAITING_KEY, token)
     redis.zrem(ACTIVE_KEY, token)
+    redis.hdel(ACTIVE_DEADLINE_KEY, token)
 
 
 def reset_queue_data():
     redis.delete(WAITING_KEY)
     redis.delete(ACTIVE_KEY)
+    redis.delete(ACTIVE_DEADLINE_KEY)
     redis.delete(LAST_NUMBER_KEY)
     redis.delete(LOCK_KEY)
 
@@ -551,11 +596,15 @@ def queue_status():
 
     rank = get_waiting_rank(token)
     if rank is None:
+        # 다른 요청이 방금 원자적으로 active로 옮겼을 수 있다.
+        expiry = get_active_expiry(token)
+        if expiry is not None:
+            return jsonify({"valid": True, "can_enter": True, "queue_no": queue_no, "waiting_count": 0})
         return jsonify({"valid": False})
 
     # 맨 앞 소수만 admit 로직을 시도.
     # 1000명이 동시에 lock을 두드리는 현상을 막음.
-    if rank < 3:
+    if rank < 3 or random.random() < ADMIT_TRIGGER_RATE:
         admit_users()
         expiry = get_active_expiry(token)
         if expiry is not None:
@@ -569,6 +618,9 @@ def queue_status():
             )
         rank = get_waiting_rank(token)
         if rank is None:
+            expiry = get_active_expiry(token)
+            if expiry is not None:
+                return jsonify({"valid": True, "can_enter": True, "queue_no": queue_no, "waiting_count": 0})
             return jsonify({"valid": False})
 
     return jsonify(
@@ -619,6 +671,14 @@ def apply():
         remaining=remaining,
         remaining_time=remaining_time,
     )
+
+
+@app.route("/heartbeat", methods=["POST"])
+def heartbeat():
+    deadline = refresh_active_heartbeat(session.get("queue_token"))
+    if deadline is None:
+        return jsonify({"valid": False}), 401
+    return jsonify({"valid": True, "remaining_time": max(deadline - now_ts(), 0)})
 
 
 @app.route("/leave", methods=["POST"])
@@ -1004,6 +1064,7 @@ def debug_queue():
             "active_count": int(redis.zcard(ACTIVE_KEY) or 0),
             "waiting_count": int(redis.zcard(WAITING_KEY) or 0),
             "active_users": redis.zrange(ACTIVE_KEY, 0, -1) or [],
+            "active_deadlines": redis.hgetall(ACTIVE_DEADLINE_KEY) or {},
             "waiting_users": redis.zrange(WAITING_KEY, 0, -1) or [],
             "db_pool_min_per_worker": DB_POOL_MIN,
             "db_pool_max_per_worker": DB_POOL_MAX,

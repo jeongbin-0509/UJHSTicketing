@@ -129,6 +129,9 @@
       let timer = null;
       let displayedCount = null;
       let countAnimation = null;
+      let queueNumber = null;
+      let useSharedProgress = false;
+      const exactThreshold = {{ queue_exact_threshold | int }};
 
       function setPositionCount(count) {
         document.getElementById("position").textContent =
@@ -182,6 +185,12 @@
         return 8000;
       }
 
+      function sharedDelay(count) {
+        if (count <= 300) return 5000;
+        if (count <= 1000) return 8000;
+        return 12000;
+      }
+
       function scheduleNext(ms) {
         // 모든 브라우저 요청이 같은 순간에 몰리지 않도록 jitter 추가
         const jitter = Math.floor(Math.random() * 250);
@@ -193,6 +202,24 @@
         if (checking || moving) return;
         checking = true;
         try {
+          if (useSharedProgress && queueNumber !== null) {
+            const progressResponse = await fetch("/queue/progress");
+            const progress = await progressResponse.json();
+            if (!progress.open || progress.sold_out) {
+              useSharedProgress = false;
+            } else {
+              const front = Number(progress.front_queue_no || queueNumber);
+              const estimatedCount = Math.max(queueNumber - front, 0);
+              animatePositionCount(estimatedCount);
+              markUpdated();
+              if (estimatedCount > Number(progress.exact_threshold || exactThreshold)) {
+                scheduleNext(sharedDelay(estimatedCount));
+                return;
+              }
+              useSharedProgress = false;
+            }
+          }
+
           const response = await fetch("/queue/status", { cache: "no-store" });
           if (response.status === 401) {
             location.replace("/");
@@ -204,8 +231,9 @@
             return;
           }
 
+          queueNumber = Number(data.queue_no);
           document.getElementById("queueNumber").textContent =
-            `대기번호 ${data.queue_no}번`;
+            `대기번호 ${queueNumber.toLocaleString("ko-KR")}번`;
 
           if (data.can_enter) {
             moving = true;
@@ -218,6 +246,7 @@
           const count = Number(data.waiting_count || 0);
           animatePositionCount(count);
           markUpdated();
+          useSharedProgress = count > exactThreshold;
           scheduleNext(nextDelay(count));
         } catch (error) {
           console.error(error);

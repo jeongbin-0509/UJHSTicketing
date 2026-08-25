@@ -5,6 +5,7 @@ import exec from 'k6/execution';
 
 const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:5000';
 const MAX_WAIT_SECONDS = Number(__ENV.MAX_WAIT_SECONDS || 240);
+const EXACT_QUEUE_THRESHOLD = Number(__ENV.EXACT_QUEUE_THRESHOLD || 100);
 
 http.setResponseCallback(http.expectedStatuses(200, 302, 409));
 
@@ -16,6 +17,8 @@ const admittedRate = new Rate('admitted_rate');
 const handledRate = new Rate('handled_rate');
 const journeyFailure = new Rate('journey_failure');
 const queueWait = new Trend('queue_wait_duration', true);
+const queueExactPolls = new Counter('queue_exact_polls');
+const queueSharedPolls = new Counter('queue_shared_polls');
 
 export const options = {
   scenarios: {
@@ -52,6 +55,8 @@ export default function () {
   const journeyStarted = Date.now();
   let admitted = false;
   let failed = false;
+  let queueNo = null;
+  let useSharedProgress = false;
 
   const enter = http.get(`${BASE_URL}/enter`, { redirects: 0 });
   const location = enter.headers.Location || '';
@@ -76,6 +81,23 @@ export default function () {
 
   const deadline = Date.now() + MAX_WAIT_SECONDS * 1000;
   while (!admitted && Date.now() < deadline) {
+    if (useSharedProgress && queueNo !== null) {
+      queueSharedPolls.add(1);
+      const progressResponse = http.get(`${BASE_URL}/queue/progress`);
+      let progress = null;
+      try { progress = progressResponse.json(); } catch (_) { /* exact fallback below */ }
+      if (progressResponse.status === 200 && progress && progress.open && !progress.sold_out) {
+        const front = Number(progress.front_queue_no || queueNo);
+        const estimatedCount = Math.max(queueNo - front, 0);
+        if (estimatedCount > Number(progress.exact_threshold || EXACT_QUEUE_THRESHOLD)) {
+          sleep(queuePollDelay(estimatedCount) + Math.random() * 0.25);
+          continue;
+        }
+      }
+      useSharedProgress = false;
+    }
+
+    queueExactPolls.add(1);
     const status = http.get(`${BASE_URL}/queue/status`, { redirects: 0 });
     let body = null;
     try { body = status.json(); } catch (_) { /* recorded below */ }
@@ -93,8 +115,11 @@ export default function () {
       break;
     }
     admitted = body.can_enter === true;
+    queueNo = Number(body.queue_no || queueNo);
     if (!admitted) {
-      sleep(queuePollDelay(Number(body.waiting_count || 0)) + Math.random() * 0.25);
+      const waitingCount = Number(body.waiting_count || 0);
+      useSharedProgress = waitingCount > EXACT_QUEUE_THRESHOLD;
+      sleep(queuePollDelay(waitingCount) + Math.random() * 0.25);
     }
   }
 

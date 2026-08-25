@@ -93,3 +93,48 @@ def test_status_rechecks_active_when_waiting_rank_disappears(app_module, monkeyp
         "queue_no": 7,
         "waiting_count": 0,
     }
+
+
+def test_shared_progress_is_cached_and_does_not_calculate_personal_rank(app_module, monkeypatch):
+    app = app_module
+    app._local_queue_progress.update({"expires": 0.0, "data": None})
+    app.redis.zadd(app.WAITING_KEY, {"waiting-31": 31, "waiting-32": 32})
+    app.redis.zadd(app.ACTIVE_KEY, {"active-user": 9999})
+
+    calls = {"count": 0}
+    original_eval = app.redis.eval
+
+    def counted_eval(*args, **kwargs):
+        calls["count"] += 1
+        return original_eval(*args, **kwargs)
+
+    monkeypatch.setattr(app.redis, "eval", counted_eval)
+    first = app.get_queue_progress()
+    second = app.get_queue_progress()
+
+    assert first == {
+        "front_queue_no": 31,
+        "waiting_count": 2,
+        "active_count": 1,
+    }
+    assert second == first
+    assert calls["count"] == 1
+
+
+def test_progress_endpoint_returns_shared_cacheable_state(app_module, monkeypatch):
+    app = app_module
+    monkeypatch.setattr(app, "get_sale_state", lambda: {"is_open": True})
+    monkeypatch.setattr(app, "get_remaining_seats", lambda: 50)
+    monkeypatch.setattr(app, "get_queue_progress", lambda: {
+        "front_queue_no": 21,
+        "waiting_count": 200,
+        "active_count": 30,
+    })
+
+    with app.app.test_client() as client:
+        response = client.get("/queue/progress")
+
+    assert response.status_code == 200
+    assert response.get_json()["front_queue_no"] == 21
+    assert response.get_json()["exact_threshold"] == app.QUEUE_EXACT_THRESHOLD
+    assert response.headers["Cache-Control"].startswith("public, max-age=1")

@@ -50,6 +50,8 @@ DB_POOL_MIN = max(1, int(os.getenv("DB_POOL_MIN", "1")))
 DB_POOL_MAX = max(DB_POOL_MIN, int(os.getenv("DB_POOL_MAX", "8")))
 DB_POOL_WAIT_SECONDS = float(os.getenv("DB_POOL_WAIT_SECONDS", "5"))
 LOCAL_CACHE_SECONDS = float(os.getenv("LOCAL_CACHE_SECONDS", "1"))
+QUEUE_PROGRESS_CACHE_SECONDS = float(os.getenv("QUEUE_PROGRESS_CACHE_SECONDS", "1"))
+QUEUE_EXACT_THRESHOLD = max(10, int(os.getenv("QUEUE_EXACT_THRESHOLD", "100")))
 ACTIVE_HEARTBEAT_TTL = int(os.getenv("ACTIVE_HEARTBEAT_TTL", "30"))
 ACTIVE_INITIAL_TTL = int(os.getenv("ACTIVE_INITIAL_TTL", "60"))
 ADMIT_TRIGGER_RATE = float(os.getenv("ADMIT_TRIGGER_RATE", "0.02"))
@@ -141,6 +143,10 @@ def release_db(conn, discard=False):
 
 _local_sale = {"expires": 0.0, "data": None}
 _local_seat = {"expires": 0.0, "data": None}
+_local_queue_progress = {"expires": 0.0, "data": None}
+_sale_cache_lock = threading.Lock()
+_seat_cache_lock = threading.Lock()
+_queue_progress_lock = threading.Lock()
 
 
 def _set_local(cache, data):
@@ -195,10 +201,15 @@ def get_sale_schedule(force_db=False):
         if local is not None:
             return local
 
-        cached = _redis_json_get(SALE_CACHE_KEY)
-        if cached is not None:
-            _set_local(_local_sale, cached)
-            return cached
+        with _sale_cache_lock:
+            local = _get_local(_local_sale)
+            if local is not None:
+                return local
+            cached = _redis_json_get(SALE_CACHE_KEY)
+            if cached is not None:
+                _set_local(_local_sale, cached)
+                return cached
+            return _load_sale_from_db()
 
     return _load_sale_from_db()
 
@@ -264,10 +275,15 @@ def get_seat_snapshot(force_db=False):
         if local is not None:
             return local
 
-        cached = _redis_json_get(SEAT_CACHE_KEY)
-        if cached is not None:
-            _set_local(_local_seat, cached)
-            return cached
+        with _seat_cache_lock:
+            local = _get_local(_local_seat)
+            if local is not None:
+                return local
+            cached = _redis_json_get(SEAT_CACHE_KEY)
+            if cached is not None:
+                _set_local(_local_seat, cached)
+                return cached
+            return _load_seat_from_db()
 
     return _load_seat_from_db()
 
@@ -310,6 +326,41 @@ def active_count():
 
 def waiting_count():
     return int(redis.zcard(WAITING_KEY) or 0)
+
+
+def get_queue_progress():
+    """모든 원거리 대기자가 공유하는 진행 상태를 짧게 캐시한다."""
+    cached = _get_local(_local_queue_progress)
+    if cached is not None:
+        return cached
+
+    with _queue_progress_lock:
+        cached = _get_local(_local_queue_progress)
+        if cached is not None:
+            return cached
+
+        result = redis.eval(
+            """
+            local first = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
+            local front = 0
+            if #first >= 2 then front = tonumber(first[2]) end
+            return {
+                front,
+                redis.call('ZCARD', KEYS[1]),
+                redis.call('ZCARD', KEYS[2])
+            }
+            """,
+            keys=[WAITING_KEY, ACTIVE_KEY],
+            args=[],
+        )
+        data = {
+            "front_queue_no": int(float(result[0] or 0)),
+            "waiting_count": int(result[1] or 0),
+            "active_count": int(result[2] or 0),
+        }
+        _local_queue_progress["data"] = data
+        _local_queue_progress["expires"] = time.monotonic() + QUEUE_PROGRESS_CACHE_SECONDS
+        return data
 
 
 def admit_users():
@@ -695,7 +746,27 @@ def waiting():
     if not user_is_waiting(token):
         return redirect("/")
 
-    return render_template("waiting.html")
+    return render_template("waiting.html", queue_exact_threshold=QUEUE_EXACT_THRESHOLD)
+
+
+@app.route("/queue/progress")
+def queue_progress():
+    """원거리 대기자용 공유 상태. 개인별 ZRANK를 실행하지 않는다."""
+    sale_open = get_sale_state()["is_open"]
+    sold_out = get_remaining_seats() <= 0
+    progress = get_queue_progress() if sale_open and not sold_out else {
+        "front_queue_no": 0,
+        "waiting_count": 0,
+        "active_count": 0,
+    }
+    response = jsonify({
+        "open": sale_open,
+        "sold_out": sold_out,
+        "exact_threshold": QUEUE_EXACT_THRESHOLD,
+        **progress,
+    })
+    response.headers["Cache-Control"] = "public, max-age=1, s-maxage=1, stale-while-revalidate=1"
+    return response
 
 
 @app.route("/queue/status")

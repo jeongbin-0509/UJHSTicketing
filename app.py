@@ -50,11 +50,14 @@ DB_POOL_MIN = max(1, int(os.getenv("DB_POOL_MIN", "1")))
 DB_POOL_MAX = max(DB_POOL_MIN, int(os.getenv("DB_POOL_MAX", "8")))
 DB_POOL_WAIT_SECONDS = float(os.getenv("DB_POOL_WAIT_SECONDS", "5"))
 LOCAL_CACHE_SECONDS = float(os.getenv("LOCAL_CACHE_SECONDS", "1"))
-ACTIVE_HEARTBEAT_TTL = int(os.getenv("ACTIVE_HEARTBEAT_TTL", "15"))
+ACTIVE_HEARTBEAT_TTL = int(os.getenv("ACTIVE_HEARTBEAT_TTL", "30"))
+ACTIVE_INITIAL_TTL = int(os.getenv("ACTIVE_INITIAL_TTL", "60"))
 ADMIT_TRIGGER_RATE = float(os.getenv("ADMIT_TRIGGER_RATE", "0.02"))
 
 if ACTIVE_HEARTBEAT_TTL < 2:
     raise RuntimeError("ACTIVE_HEARTBEAT_TTL은 2초 이상이어야 합니다.")
+if ACTIVE_INITIAL_TTL < ACTIVE_HEARTBEAT_TTL:
+    raise RuntimeError("ACTIVE_INITIAL_TTL은 ACTIVE_HEARTBEAT_TTL 이상이어야 합니다.")
 if not 0 <= ADMIT_TRIGGER_RATE <= 1:
     raise RuntimeError("ADMIT_TRIGGER_RATE는 0과 1 사이여야 합니다.")
 
@@ -337,30 +340,159 @@ def admit_users():
     return int(redis.eval(
         script,
         keys=[WAITING_KEY, ACTIVE_KEY, ACTIVE_DEADLINE_KEY],
-        args=[str(now_ts()), str(MAX_ACTIVE), str(ACTIVE_HEARTBEAT_TTL), str(APPLY_TIME_LIMIT)],
+        args=[str(now_ts()), str(MAX_ACTIVE), str(ACTIVE_INITIAL_TTL), str(APPLY_TIME_LIMIT)],
     ) or 0)
+
+
+def enter_queue(token, existing_queue_no=None):
+    """대기번호 발급, 대기열 등록, 빈자리 입장을 Redis 왕복 한 번으로 처리한다."""
+    script = """
+    local token = ARGV[1]
+    local now = tonumber(ARGV[2])
+    local max_active = tonumber(ARGV[3])
+    local initial_expiry = now + tonumber(ARGV[4])
+    local apply_deadline = now + tonumber(ARGV[5])
+    local queue_no = tonumber(ARGV[6]) or 0
+
+    local expired = redis.call('ZRANGEBYSCORE', KEYS[2], '-inf', now)
+    if #expired > 0 then
+        redis.call('ZREM', KEYS[2], unpack(expired))
+        redis.call('HDEL', KEYS[3], unpack(expired))
+    end
+
+    local active_score = redis.call('ZSCORE', KEYS[2], token)
+    local waiting_score = redis.call('ZSCORE', KEYS[1], token)
+    if not active_score and not waiting_score then
+        queue_no = redis.call('INCR', KEYS[4])
+        redis.call('ZADD', KEYS[1], queue_no, token)
+    elseif waiting_score then
+        queue_no = tonumber(waiting_score)
+    end
+
+    local slots = max_active - redis.call('ZCARD', KEYS[2])
+    if slots > 0 then
+        local users = redis.call('ZRANGE', KEYS[1], 0, slots - 1)
+        for _, user in ipairs(users) do
+            redis.call('ZADD', KEYS[2], initial_expiry, user)
+            redis.call('HSET', KEYS[3], user, apply_deadline)
+            redis.call('ZREM', KEYS[1], user)
+        end
+    end
+
+    if redis.call('ZSCORE', KEYS[2], token) then
+        return {queue_no, 1, 0}
+    end
+    local rank = redis.call('ZRANK', KEYS[1], token)
+    if rank then return {queue_no, 0, rank} end
+    return {queue_no, -1, -1}
+    """
+    result = redis.eval(
+        script,
+        keys=[WAITING_KEY, ACTIVE_KEY, ACTIVE_DEADLINE_KEY, LAST_NUMBER_KEY],
+        args=[
+            token,
+            str(now_ts()),
+            str(MAX_ACTIVE),
+            str(ACTIVE_INITIAL_TTL),
+            str(APPLY_TIME_LIMIT),
+            str(existing_queue_no or 0),
+        ],
+    )
+    return int(result[0]), int(result[1]), int(result[2])
 
 
 def get_active_expiry(token):
     if not token:
         return None
-    heartbeat_expiry = redis.zscore(ACTIVE_KEY, token)
-    deadline = redis.hget(ACTIVE_DEADLINE_KEY, token)
-    if heartbeat_expiry is None:
-        return None
-    now = now_ts()
-    # 배포 직전 active 사용자는 기존 ZSET score가 실제 마감이었다.
-    # HASH가 없으면 그 값을 deadline으로 승격해 진행 중인 신청을 보존한다.
-    if deadline is None and int(float(heartbeat_expiry)) > now:
-        deadline = int(float(heartbeat_expiry))
-        redis.hset(ACTIVE_DEADLINE_KEY, token, deadline)
-        redis.zadd(ACTIVE_KEY, {token: now + ACTIVE_HEARTBEAT_TTL})
-        heartbeat_expiry = now + ACTIVE_HEARTBEAT_TTL
-    if int(float(heartbeat_expiry)) <= now or int(deadline) <= now:
-        redis.zrem(ACTIVE_KEY, token)
-        redis.hdel(ACTIVE_DEADLINE_KEY, token)
-        return None
-    return int(deadline)
+    script = """
+    local score = redis.call('ZSCORE', KEYS[1], ARGV[1])
+    local now = tonumber(ARGV[2])
+    if not score or tonumber(score) <= now then
+        redis.call('ZREM', KEYS[1], ARGV[1])
+        redis.call('HDEL', KEYS[2], ARGV[1])
+        return false
+    end
+    local deadline = redis.call('HGET', KEYS[2], ARGV[1])
+    if not deadline then
+        deadline = score
+        redis.call('HSET', KEYS[2], ARGV[1], deadline)
+    end
+    if tonumber(deadline) <= now then
+        redis.call('ZREM', KEYS[1], ARGV[1])
+        redis.call('HDEL', KEYS[2], ARGV[1])
+        return false
+    end
+    return deadline
+    """
+    result = redis.eval(
+        script,
+        keys=[ACTIVE_KEY, ACTIVE_DEADLINE_KEY],
+        args=[token, str(now_ts())],
+    )
+    return int(result) if result else None
+
+
+def get_queue_state(token, trigger_admit=False):
+    """active 확인, 순번 조회, 선택적 입장을 원자적인 Redis 왕복 한 번으로 처리한다."""
+    script = """
+    local token = ARGV[1]
+    local now = tonumber(ARGV[2])
+    local rank = redis.call('ZRANK', KEYS[1], token)
+    local score = redis.call('ZSCORE', KEYS[2], token)
+    local deadline = redis.call('HGET', KEYS[3], token)
+
+    if score and tonumber(score) > now then
+        if not deadline then
+            deadline = score
+            redis.call('HSET', KEYS[3], token, deadline)
+        end
+        if tonumber(deadline) > now then return {1, 0, deadline} end
+    end
+    if score then
+        redis.call('ZREM', KEYS[2], token)
+        redis.call('HDEL', KEYS[3], token)
+    end
+    if not rank then return {-1, -1, 0} end
+
+    if rank < 3 or tonumber(ARGV[7]) == 1 then
+        local expired = redis.call('ZRANGEBYSCORE', KEYS[2], '-inf', now)
+        if #expired > 0 then
+            redis.call('ZREM', KEYS[2], unpack(expired))
+            redis.call('HDEL', KEYS[3], unpack(expired))
+        end
+        local slots = tonumber(ARGV[3]) - redis.call('ZCARD', KEYS[2])
+        if slots > 0 then
+            local users = redis.call('ZRANGE', KEYS[1], 0, slots - 1)
+            for _, user in ipairs(users) do
+                redis.call('ZADD', KEYS[2], now + tonumber(ARGV[4]), user)
+                redis.call('HSET', KEYS[3], user, now + tonumber(ARGV[5]))
+                redis.call('ZREM', KEYS[1], user)
+            end
+        end
+        score = redis.call('ZSCORE', KEYS[2], token)
+        if score then
+            deadline = redis.call('HGET', KEYS[3], token)
+            return {1, 0, deadline}
+        end
+        rank = redis.call('ZRANK', KEYS[1], token)
+        if not rank then return {-1, -1, 0} end
+    end
+    return {0, rank, 0}
+    """
+    result = redis.eval(
+        script,
+        keys=[WAITING_KEY, ACTIVE_KEY, ACTIVE_DEADLINE_KEY],
+        args=[
+            token,
+            str(now_ts()),
+            str(MAX_ACTIVE),
+            str(ACTIVE_INITIAL_TTL),
+            str(APPLY_TIME_LIMIT),
+            str(ACTIVE_HEARTBEAT_TTL),
+            "1" if trigger_admit else "0",
+        ],
+    )
+    return int(result[0]), int(result[1]), int(result[2])
 
 
 def refresh_active_heartbeat(token):
@@ -413,9 +545,12 @@ def get_waiting_rank(token):
 def remove_user(token):
     if not token:
         return
-    redis.zrem(WAITING_KEY, token)
-    redis.zrem(ACTIVE_KEY, token)
-    redis.hdel(ACTIVE_DEADLINE_KEY, token)
+    redis.eval(
+        "redis.call('ZREM', KEYS[1], ARGV[1]); redis.call('ZREM', KEYS[2], ARGV[1]); "
+        "redis.call('HDEL', KEYS[3], ARGV[1]); return 1",
+        keys=[WAITING_KEY, ACTIVE_KEY, ACTIVE_DEADLINE_KEY],
+        args=[token],
+    )
 
 
 def reset_queue_data():
@@ -526,23 +661,20 @@ def enter():
     if not get_sale_state()["is_open"]:
         return redirect("/")
     if get_remaining_seats() <= 0:
-        return redirect("/")
+        response = redirect("/")
+        response.headers["X-Ticket-Result"] = "sold-out"
+        return response
 
-    token = session.get("queue_token")
-    if token and user_is_active(token):
-        return redirect("/apply")
-    if token and user_is_waiting(token):
-        return redirect("/waiting")
-
-    token = str(uuid.uuid4())
-    queue_no = int(redis.incr(LAST_NUMBER_KEY))
+    token = session.get("queue_token") or str(uuid.uuid4())
+    queue_no, state, _rank = enter_queue(token, session.get("queue_no"))
     session["queue_token"] = token
     session["queue_no"] = queue_no
-
-    redis.zadd(WAITING_KEY, {token: queue_no})
-    admit_users()
-
-    return redirect("/apply" if user_is_active(token) else "/waiting")
+    if state == 1:
+        return redirect("/apply")
+    if state == 0:
+        return redirect("/waiting")
+    clear_session()
+    return redirect("/")
 
 
 
@@ -583,45 +715,19 @@ def queue_status():
         clear_session()
         return jsonify({"valid": False, "closed": True})
 
-    expiry = get_active_expiry(token)
-    if expiry is not None:
-        return jsonify(
-            {
-                "valid": True,
-                "can_enter": True,
-                "queue_no": queue_no,
-                "waiting_count": 0,
-            }
-        )
+    if get_remaining_seats() <= 0:
+        remove_user(token)
+        clear_session()
+        return jsonify({"valid": False, "sold_out": True})
 
-    rank = get_waiting_rank(token)
-    if rank is None:
-        # 다른 요청이 방금 원자적으로 active로 옮겼을 수 있다.
-        expiry = get_active_expiry(token)
-        if expiry is not None:
-            return jsonify({"valid": True, "can_enter": True, "queue_no": queue_no, "waiting_count": 0})
+    state, rank, _deadline = get_queue_state(
+        token,
+        trigger_admit=random.random() < ADMIT_TRIGGER_RATE,
+    )
+    if state == 1:
+        return jsonify({"valid": True, "can_enter": True, "queue_no": queue_no, "waiting_count": 0})
+    if state == -1:
         return jsonify({"valid": False})
-
-    # 맨 앞 소수만 admit 로직을 시도.
-    # 1000명이 동시에 lock을 두드리는 현상을 막음.
-    if rank < 3 or random.random() < ADMIT_TRIGGER_RATE:
-        admit_users()
-        expiry = get_active_expiry(token)
-        if expiry is not None:
-            return jsonify(
-                {
-                    "valid": True,
-                    "can_enter": True,
-                    "queue_no": queue_no,
-                    "waiting_count": 0,
-                }
-            )
-        rank = get_waiting_rank(token)
-        if rank is None:
-            expiry = get_active_expiry(token)
-            if expiry is not None:
-                return jsonify({"valid": True, "can_enter": True, "queue_no": queue_no, "waiting_count": 0})
-            return jsonify({"valid": False})
 
     return jsonify(
         {
@@ -664,7 +770,9 @@ def apply():
         remove_user(token)
         clear_session()
         admit_users()
-        return redirect("/")
+        response = redirect("/")
+        response.headers["X-Ticket-Result"] = "sold-out"
+        return response
 
     return render_template(
         "apply.html",
@@ -730,34 +838,19 @@ def reserve():
         conn = get_db()
         cur = conn.cursor()
 
-        # 최종 좌석 배정만 DB transaction + row lock으로 처리.
+        # 조건부 좌석 증가와 신청 저장을 한 SQL로 묶어 DB 왕복을 한 번만 수행한다.
         cur.execute(
             """
-            SELECT next_seat, total_seats
-            FROM seat_counter
-            WHERE id = 1
-            FOR UPDATE
-            """
-        )
-        seat = cur.fetchone()
-        if not seat:
-            conn.rollback()
-            return "좌석 데이터가 없습니다.", 500
-
-        next_seat = int(seat["next_seat"])
-        total_seats = int(seat["total_seats"])
-        last_seat = next_seat + people_count - 1
-
-        if last_seat > total_seats:
-            conn.rollback()
-            set_seat_snapshot(next_seat, total_seats)
-            return "남은 좌석이 부족합니다.", 409
-
-        seat_list = list(range(next_seat, next_seat + people_count))
-        seat_numbers = ", ".join(map(str, seat_list))
-
-        cur.execute(
-            """
+            WITH allocated AS (
+                UPDATE seat_counter
+                SET next_seat = next_seat + %s
+                WHERE id = 1
+                  AND next_seat + %s - 1 <= total_seats
+                RETURNING
+                    next_seat - %s AS first_seat,
+                    next_seat,
+                    total_seats
+            )
             INSERT INTO reservations (
                 student_name,
                 student_phone,
@@ -766,30 +859,59 @@ def reserve():
                 people_count,
                 seat_numbers
             )
-            VALUES (%s, %s, %s, %s, %s, %s)
+            SELECT
+                %s, %s, %s, %s, %s,
+                CASE
+                    WHEN %s = 1 THEN first_seat::text
+                    ELSE first_seat::text || ', ' || (first_seat + %s - 1)::text
+                END
+            FROM allocated
+            RETURNING
+                seat_numbers,
+                (SELECT first_seat FROM allocated) AS first_seat,
+                (SELECT next_seat FROM allocated) AS next_seat,
+                (SELECT total_seats FROM allocated) AS total_seats
             """,
             (
+                people_count,
+                people_count,
+                people_count,
                 student_name,
                 student_phone,
                 parent_name,
                 parent_phone,
                 people_count,
-                seat_numbers,
+                people_count,
+                people_count,
             ),
         )
+        allocated = cur.fetchone()
+        if not allocated:
+            conn.rollback()
+            cur.execute("SELECT next_seat, total_seats FROM seat_counter WHERE id = 1")
+            seat = cur.fetchone()
+            if not seat:
+                return "좌석 데이터가 없습니다.", 500
+            next_seat = int(seat["next_seat"])
+            total_seats = int(seat["total_seats"])
+            cur.close()
+            cur = None
+            release_db(conn)
+            conn = None
+            set_seat_snapshot(next_seat, total_seats)
+            remove_user(token)
+            clear_session()
+            admit_users()
+            result = "sold-out" if next_seat > total_seats else "insufficient-seats"
+            return "남은 좌석이 부족합니다.", 409, {"X-Ticket-Result": result}
 
-        cur.execute(
-            """
-            UPDATE seat_counter
-            SET next_seat = next_seat + %s
-            WHERE id = 1
-            """,
-            (people_count,),
-        )
+        seat_numbers = allocated["seat_numbers"]
+        next_seat = int(allocated["next_seat"])
+        total_seats = int(allocated["total_seats"])
         conn.commit()
 
         # DB 커밋 뒤 표시용 cache 동기화
-        set_seat_snapshot(next_seat + people_count, total_seats)
+        set_seat_snapshot(next_seat, total_seats)
 
     except psycopg2.errors.UniqueViolation:
         if conn:

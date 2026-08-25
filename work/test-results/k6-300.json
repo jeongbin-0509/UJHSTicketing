@@ -1,0 +1,168 @@
+{
+    "metrics": {
+        "http_req_waiting": {
+            "avg": 1627.067454287916,
+            "min": 0.671,
+            "med": 1422.918,
+            "max": 5038.796,
+            "p(90)": 2748.1566,
+            "p(95)": 3484.1433999999995
+        },
+        "admitted_rate": {
+            "passes": 300,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.95": false
+            },
+            "value": 1
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 3883,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "http_req_sending": {
+            "avg": 0.0321928920937423,
+            "min": 0.002,
+            "med": 0.009,
+            "max": 3.101,
+            "p(90)": 0.021,
+            "p(95)": 0.03
+        },
+        "data_sent": {
+            "count": 920290,
+            "rate": 24338.859422583842
+        },
+        "http_req_connecting": {
+            "med": 0,
+            "max": 34.789,
+            "p(90)": 0,
+            "p(95)": 2.9709999999999983,
+            "avg": 0.9973268091681688,
+            "min": 0
+        },
+        "http_req_tls_handshaking": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "http_req_blocked": {
+            "max": 34.802,
+            "p(90)": 0.01,
+            "p(95)": 2.9801999999999986,
+            "avg": 1.0053195982488143,
+            "min": 0,
+            "med": 0.003
+        },
+        "queue_wait_duration": {
+            "avg": 22966.763333333332,
+            "min": 3996,
+            "med": 24853.5,
+            "max": 36235,
+            "p(90)": 33637.1,
+            "p(95)": 34861,
+            "thresholds": {
+                "p(95)<240000": false
+            }
+        },
+        "http_req_duration": {
+            "p(95)": 3484.7239,
+            "avg": 1627.1495132629393,
+            "min": 0.685,
+            "med": 1422.99,
+            "max": 5040.063,
+            "p(90)": 2748.1896
+        },
+        "http_req_receiving": {
+            "avg": 0.04986608292557321,
+            "min": 0.009,
+            "med": 0.032,
+            "max": 1.411,
+            "p(90)": 0.089,
+            "p(95)": 0.128
+        },
+        "checks": {
+            "passes": 600,
+            "fails": 0,
+            "value": 1
+        },
+        "iteration_duration": {
+            "avg": 26362.925816696647,
+            "min": 10130.612834,
+            "med": 28122.6349165,
+            "max": 37809.083,
+            "p(90)": 35432.7729583,
+            "p(95)": 36515.80354724999
+        },
+        "vus": {
+            "value": 13,
+            "min": 13,
+            "max": 300
+        },
+        "data_received": {
+            "count": 3206045,
+            "rate": 84790.09720574798
+        },
+        "journey_failure": {
+            "passes": 0,
+            "fails": 300,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "http_reqs": {
+            "count": 3883,
+            "rate": 102.6934891587359
+        },
+        "http_req_duration{expected_response:true}": {
+            "max": 5040.063,
+            "p(90)": 2748.1896,
+            "p(95)": 3484.7239,
+            "avg": 1627.1495132629393,
+            "min": 0.685,
+            "med": 1422.99
+        },
+        "reserve_success": {
+            "count": 300,
+            "rate": 7.934083633175578
+        },
+        "iterations": {
+            "rate": 7.934083633175578,
+            "count": 300
+        },
+        "vus_max": {
+            "value": 300,
+            "min": 300,
+            "max": 300
+        }
+    },
+    "root_group": {
+        "groups": {},
+        "checks": {
+                "enter reached queue/apply": {
+                    "passes": 300,
+                    "fails": 0,
+                    "name": "enter reached queue/apply",
+                    "path": "::enter reached queue/apply",
+                    "id": "c96f5fce3b92bb4c5cdc7621bb210172"
+                },
+                "reservation completed": {
+                    "fails": 0,
+                    "name": "reservation completed",
+                    "path": "::reservation completed",
+                    "id": "7890611248b3a92183f8eac9cad4dceb",
+                    "passes": 300
+                }
+            },
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+}

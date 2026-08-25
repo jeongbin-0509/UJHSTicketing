@@ -28,14 +28,19 @@
 좌석 수를 충분히 설정한 뒤 실행하세요. 운영 데이터에는 실행하지 마세요.
 
 ```bash
-BASE_URL=https://test.example.com k6 run load_test_flow.js
+BASE_URL=https://test.example.com VUS=100 k6 run load_test_flow.js
 ```
 
 스크립트는 `/enter` → `/queue/status` 폴링 → `/heartbeat` → `/reserve`를 수행하고,
 HTTP 코드뿐 아니라 실제 입장률(`admitted_rate`), 완료 수(`reserve_success`), 전체 과정
 실패율(`journey_failure`), 대기시간(`queue_wait_duration`)을 기록합니다.
+각 가상 사용자는 전체 신청 과정을 정확히 한 번만 수행합니다. `VUS=100`, `300`,
+`1000`으로 각각 실행해 단계별 결과를 비교할 수 있습니다.
 
 대기열 자동 테스트는 `pip install -r requirements-dev.txt` 후 `pytest -q`로 실행합니다.
+최초 입장에는 응답 지연을 견디기 위한 `ACTIVE_INITIAL_TTL`(기본 60초)을 적용하고,
+첫 `/heartbeat` 이후에는 `ACTIVE_HEARTBEAT_TTL`(기본 30초)로 전환됩니다. 현재
+측정된 1,000명 테스트의 HTTP p95(17.73초)보다 길게 잡아 정상 요청의 오탐 만료를 막습니다.
 
 ---
 

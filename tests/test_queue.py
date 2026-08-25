@@ -19,6 +19,18 @@ def test_admit_is_atomic_and_never_exceeds_capacity(app_module, monkeypatch):
     assert app.redis.zcard(app.ACTIVE_KEY) == app.MAX_ACTIVE
 
 
+def test_enter_queue_issues_unique_numbers_and_respects_capacity(app_module, monkeypatch):
+    app = app_module
+    monkeypatch.setattr(app, "now_ts", lambda: 1000)
+
+    results = [app.enter_queue(f"entrant-{number}") for number in range(100)]
+
+    assert [queue_no for queue_no, _state, _rank in results] == list(range(1, 101))
+    assert sum(state == 1 for _queue_no, state, _rank in results) == app.MAX_ACTIVE
+    assert app.redis.zcard(app.ACTIVE_KEY) == app.MAX_ACTIVE
+    assert app.redis.zcard(app.WAITING_KEY) == 100 - app.MAX_ACTIVE
+
+
 def test_expired_ghosts_are_reclaimed_and_queue_progresses(app_module, monkeypatch):
     app = app_module
     clock = {"now": 1000}
@@ -26,7 +38,7 @@ def test_expired_ghosts_are_reclaimed_and_queue_progresses(app_module, monkeypat
     add_waiters(app, app.MAX_ACTIVE + 5)
     app.admit_users()
 
-    clock["now"] += app.ACTIVE_HEARTBEAT_TTL + 1
+    clock["now"] += app.ACTIVE_INITIAL_TTL + 1
     assert app.admit_users() == 5
     assert app.redis.zcard(app.WAITING_KEY) == 0
     assert app.redis.zcard(app.ACTIVE_KEY) == 5
@@ -59,14 +71,14 @@ def test_existing_active_user_is_migrated_without_being_kicked(app_module, monke
 
     assert app.get_active_expiry("legacy-user") == 1180
     assert int(app.redis.hget(app.ACTIVE_DEADLINE_KEY, "legacy-user")) == 1180
-    assert int(app.redis.zscore(app.ACTIVE_KEY, "legacy-user")) == 1000 + app.ACTIVE_HEARTBEAT_TTL
+    assert int(app.redis.zscore(app.ACTIVE_KEY, "legacy-user")) == 1180
 
 
 def test_status_rechecks_active_when_waiting_rank_disappears(app_module, monkeypatch):
     app = app_module
     monkeypatch.setattr(app, "get_sale_state", lambda: {"is_open": True})
-    monkeypatch.setattr(app, "get_active_expiry", lambda _token: 1200)
-    monkeypatch.setattr(app, "get_waiting_rank", lambda _token: None)
+    monkeypatch.setattr(app, "get_remaining_seats", lambda: 10)
+    monkeypatch.setattr(app, "get_queue_state", lambda _token, trigger_admit=False: (1, 0, 1200))
 
     with app.app.test_client() as client:
         with client.session_transaction() as session:

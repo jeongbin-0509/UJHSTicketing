@@ -1,0 +1,185 @@
+{
+    "metrics": {
+        "data_sent": {
+            "count": 12216330,
+            "rate": 36110.22315940736
+        },
+        "iteration_duration": {
+            "p(90)": 321152.3736584,
+            "p(95)": 322293.4097729,
+            "avg": 274452.9207381084,
+            "min": 26743.944125,
+            "med": 316705.4244585,
+            "max": 338298.2655
+        },
+        "iterations": {
+            "count": 2000,
+            "rate": 5.91179563083305
+        },
+        "http_req_connecting": {
+            "med": 0.116,
+            "max": 123.763,
+            "p(90)": 0.201,
+            "p(95)": 0.335,
+            "avg": 1.6860850310171351,
+            "min": 0
+        },
+        "vus": {
+            "value": 1,
+            "min": 1,
+            "max": 2000
+        },
+        "vus_max": {
+            "value": 2000,
+            "min": 2000,
+            "max": 2000
+        },
+        "admitted_rate": {
+            "passes": 559,
+            "fails": 1014,
+            "value": 0.35537190082644626
+        },
+        "capacity_rejected": {
+            "count": 1,
+            "rate": 0.0029558978154165254
+        },
+        "http_req_tls_handshaking": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "sold_out": {
+            "rate": 1.2917273453370215,
+            "count": 437
+        },
+        "seats_reserved": {
+            "count": 800,
+            "rate": 2.36471825233322
+        },
+        "handled_rate": {
+            "passes": 978,
+            "fails": 1022,
+            "thresholds": {
+                "rate>0.99": true
+            },
+            "value": 0.489
+        },
+        "queue_wait_duration": {
+            "avg": 147726.68336314848,
+            "min": 7333,
+            "med": 137662,
+            "max": 314396,
+            "p(90)": 286550,
+            "p(95)": 302765,
+            "thresholds": {
+                "p(95)<240000": true
+            }
+        },
+        "journey_failure": {
+            "passes": 1022,
+            "fails": 978,
+            "thresholds": {
+                "rate<0.01": true
+            },
+            "value": 0.511
+        },
+        "http_reqs": {
+            "count": 54486,
+            "rate": 161.0550483707848
+        },
+        "http_req_duration{expected_response:true}": {
+            "avg": 4059.898733327179,
+            "min": 40.473,
+            "med": 2632.762,
+            "max": 38034.065,
+            "p(90)": 8844.582,
+            "p(95)": 9907.618699999999
+        },
+        "http_req_waiting": {
+            "max": 38033.959,
+            "p(90)": 8844.362000000001,
+            "p(95)": 9907.419,
+            "avg": 4059.9359799030835,
+            "min": 40.426,
+            "med": 2637.929
+        },
+        "http_req_duration": {
+            "p(95)": 9907.463249999999,
+            "avg": 4060.0251522042004,
+            "min": 40.473,
+            "med": 2637.964,
+            "max": 38034.065,
+            "p(90)": 8844.425500000001
+        },
+        "http_req_sending": {
+            "min": 0.001,
+            "med": 0.013,
+            "max": 150.171,
+            "p(90)": 0.027,
+            "p(95)": 0.037,
+            "avg": 0.0387036669970232
+        },
+        "http_req_failed": {
+            "passes": 11,
+            "fails": 54475,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0.00020188672319494916
+        },
+        "http_req_blocked": {
+            "p(95)": 0.3687499999999976,
+            "avg": 1.7048388576878184,
+            "min": 0,
+            "med": 0.134,
+            "max": 123.778,
+            "p(90)": 0.23
+        },
+        "checks": {
+            "passes": 2551,
+            "fails": 0,
+            "value": 1
+        },
+        "http_req_receiving": {
+            "max": 3.697,
+            "p(90)": 0.065,
+            "p(95)": 0.095,
+            "avg": 0.05046863414454802,
+            "min": 0.005,
+            "med": 0.023
+        },
+        "reserve_success": {
+            "count": 540,
+            "rate": 1.5961848203249236
+        },
+        "data_received": {
+            "rate": 81396.05859639405,
+            "count": 27536831
+        }
+    },
+    "root_group": {
+        "groups": {},
+        "checks": {
+                "enter joined queue": {
+                    "fails": 0,
+                    "name": "enter joined queue",
+                    "path": "::enter joined queue",
+                    "id": "cf71cd4661f1185c50599fa2979808cd",
+                    "passes": 2000
+                },
+                "reservation handled": {
+                    "id": "23acdfefc43783e99509ff8a554fb17c",
+                    "passes": 551,
+                    "fails": 0,
+                    "name": "reservation handled",
+                    "path": "::reservation handled"
+                }
+            },
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+}

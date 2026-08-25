@@ -95,6 +95,44 @@ def test_status_rechecks_active_when_waiting_rank_disappears(app_module, monkeyp
     }
 
 
+def test_status_uses_single_rank_lookup_for_regular_waiter(app_module, monkeypatch):
+    app = app_module
+    monkeypatch.setattr(app, "get_sale_state", lambda: {"is_open": True})
+    monkeypatch.setattr(app, "get_remaining_seats", lambda: 10)
+    monkeypatch.setattr(app.random, "random", lambda: 1.0)
+    app.redis.zadd(app.WAITING_KEY, {
+        "ahead-1": 1,
+        "ahead-2": 2,
+        "ahead-3": 3,
+        "regular-waiter": 10,
+    })
+
+    calls = {"rank": 0, "state": 0}
+    original_zrank = app.redis.zrank
+    original_state = app.get_queue_state
+
+    def counted_zrank(*args, **kwargs):
+        calls["rank"] += 1
+        return original_zrank(*args, **kwargs)
+
+    def counted_state(*args, **kwargs):
+        calls["state"] += 1
+        return original_state(*args, **kwargs)
+
+    monkeypatch.setattr(app.redis, "zrank", counted_zrank)
+    monkeypatch.setattr(app, "get_queue_state", counted_state)
+
+    with app.app.test_client() as client:
+        with client.session_transaction() as session:
+            session["queue_token"] = "regular-waiter"
+            session["queue_no"] = 10
+        response = client.get("/queue/status")
+
+    assert response.status_code == 200
+    assert response.get_json()["waiting_count"] == 3
+    assert calls == {"rank": 1, "state": 0}
+
+
 def test_shared_progress_is_cached_and_does_not_calculate_personal_rank(app_module, monkeypatch):
     app = app_module
     app._local_queue_progress.update({"expires": 0.0, "data": None})
@@ -137,4 +175,4 @@ def test_progress_endpoint_returns_shared_cacheable_state(app_module, monkeypatc
     assert response.status_code == 200
     assert response.get_json()["front_queue_no"] == 21
     assert response.get_json()["exact_threshold"] == app.QUEUE_EXACT_THRESHOLD
-    assert response.headers["Cache-Control"].startswith("public, max-age=1")
+    assert response.headers["Cache-Control"].startswith("public, max-age=3")

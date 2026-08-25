@@ -50,8 +50,8 @@ DB_POOL_MIN = max(1, int(os.getenv("DB_POOL_MIN", "1")))
 DB_POOL_MAX = max(DB_POOL_MIN, int(os.getenv("DB_POOL_MAX", "8")))
 DB_POOL_WAIT_SECONDS = float(os.getenv("DB_POOL_WAIT_SECONDS", "5"))
 LOCAL_CACHE_SECONDS = float(os.getenv("LOCAL_CACHE_SECONDS", "1"))
-QUEUE_PROGRESS_CACHE_SECONDS = float(os.getenv("QUEUE_PROGRESS_CACHE_SECONDS", "1"))
-QUEUE_EXACT_THRESHOLD = max(10, int(os.getenv("QUEUE_EXACT_THRESHOLD", "100")))
+QUEUE_PROGRESS_CACHE_SECONDS = max(1.0, float(os.getenv("QUEUE_PROGRESS_CACHE_SECONDS", "3")))
+QUEUE_EXACT_THRESHOLD = max(10, int(os.getenv("QUEUE_EXACT_THRESHOLD", "50")))
 ACTIVE_HEARTBEAT_TTL = int(os.getenv("ACTIVE_HEARTBEAT_TTL", "30"))
 ACTIVE_INITIAL_TTL = int(os.getenv("ACTIVE_INITIAL_TTL", "60"))
 ADMIT_TRIGGER_RATE = float(os.getenv("ADMIT_TRIGGER_RATE", "0.02"))
@@ -546,6 +546,14 @@ def get_queue_state(token, trigger_admit=False):
     return int(result[0]), int(result[1]), int(result[2])
 
 
+def get_waiting_rank(token):
+    """일반 대기자의 핫패스는 개인 ZRANK 한 번으로 끝낸다."""
+    if not token:
+        return None
+    rank = redis.zrank(WAITING_KEY, token)
+    return int(rank) if rank is not None else None
+
+
 def refresh_active_heartbeat(token):
     """살아 있는 active 사용자만 TTL을 연장하고 절대 마감은 유지한다."""
     if not token:
@@ -765,7 +773,11 @@ def queue_progress():
         "exact_threshold": QUEUE_EXACT_THRESHOLD,
         **progress,
     })
-    response.headers["Cache-Control"] = "public, max-age=1, s-maxage=1, stale-while-revalidate=1"
+    cache_seconds = max(1, int(QUEUE_PROGRESS_CACHE_SECONDS))
+    response.headers["Cache-Control"] = (
+        f"public, max-age={cache_seconds}, s-maxage={cache_seconds}, "
+        f"stale-while-revalidate={cache_seconds}"
+    )
     return response
 
 
@@ -791,10 +803,23 @@ def queue_status():
         clear_session()
         return jsonify({"valid": False, "sold_out": True})
 
-    state, rank, _deadline = get_queue_state(
-        token,
-        trigger_admit=random.random() < ADMIT_TRIGGER_RATE,
-    )
+    trigger_admit = random.random() < ADMIT_TRIGGER_RATE
+    rank = get_waiting_rank(token)
+
+    # 대기열의 대부분을 차지하는 일반 사용자는 ZRANK 한 번만 실행한다.
+    # 앞 3명, 유령 사용자 청소 트리거, waiting에서 사라진 사용자는
+    # 기존 원자 Lua로 재검증하여 waiting -> active 이동 레이스를 피한다.
+    if rank is not None and rank >= 3 and not trigger_admit:
+        return jsonify(
+            {
+                "valid": True,
+                "can_enter": False,
+                "queue_no": queue_no,
+                "waiting_count": rank,
+            }
+        )
+
+    state, rank, _deadline = get_queue_state(token, trigger_admit=trigger_admit)
     if state == 1:
         return jsonify({"valid": True, "can_enter": True, "queue_no": queue_no, "waiting_count": 0})
     if state == -1:

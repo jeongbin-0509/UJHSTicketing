@@ -5,7 +5,7 @@ import exec from 'k6/execution';
 
 const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:5000';
 const MAX_WAIT_SECONDS = Number(__ENV.MAX_WAIT_SECONDS || 240);
-const EXACT_QUEUE_THRESHOLD = Number(__ENV.EXACT_QUEUE_THRESHOLD || 100);
+const EXACT_QUEUE_THRESHOLD = Number(__ENV.EXACT_QUEUE_THRESHOLD || 50);
 
 http.setResponseCallback(http.expectedStatuses(200, 302, 409));
 

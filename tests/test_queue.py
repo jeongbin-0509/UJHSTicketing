@@ -31,6 +31,31 @@ def test_enter_queue_issues_unique_numbers_and_respects_capacity(app_module, mon
     assert app.redis.zcard(app.WAITING_KEY) == 100 - app.MAX_ACTIVE
 
 
+def test_json_enter_retry_is_idempotent_without_session_cookie(app_module, monkeypatch):
+    app = app_module
+    monkeypatch.setattr(app, "get_sale_state", lambda: {"is_open": True})
+    monkeypatch.setattr(app, "get_remaining_seats", lambda: 800)
+    entry_token = "123e4567-e89b-42d3-a456-426614174000"
+
+    with app.app.test_client() as first_client:
+        first = first_client.post("/enter", data={
+            "entry_token": entry_token,
+            "response": "json",
+        })
+    with app.app.test_client() as retry_without_cookie:
+        retry = retry_without_cookie.post("/enter", data={
+            "entry_token": entry_token,
+            "response": "json",
+        })
+
+    assert first.status_code == 200
+    assert retry.status_code == 200
+    assert first.get_json()["location"] == "/apply"
+    assert retry.get_json()["location"] == "/apply"
+    assert int(app.redis.get(app.LAST_NUMBER_KEY)) == 1
+    assert app.redis.zcard(app.ACTIVE_KEY) == 1
+
+
 def test_expired_ghosts_are_reclaimed_and_queue_progresses(app_module, monkeypatch):
     app = app_module
     clock = {"now": 1000}

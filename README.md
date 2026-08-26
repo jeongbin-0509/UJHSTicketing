@@ -47,6 +47,10 @@ Redis 명령 사용량을 줄이기 위해 일반 대기자는 `ZRANK` 한 번�
 `/queue/progress`의 공유 상태를 사용하며 기본 캐시는 3초, 개인 순위 전환 기준은
 앞 50명입니다. 신청실 하트비트는 10초 주기이고 presence TTL은 30초입니다.
 
+Render 연결 수용 구간만 분리해서 측정할 때는 `load_test_render.js`를 사용합니다.
+기본값은 `/healthz`에 4,000명 순간 요청이며 `SPREAD_SECONDS=30`으로 유입을
+분산하거나 `MAX_ATTEMPTS=5`로 연결 재시도 회복률을 비교할 수 있습니다.
+
 ---
 
 ## 2. System Architecture

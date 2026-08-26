@@ -19,6 +19,7 @@ const journeyFailure = new Rate('journey_failure');
 const queueWait = new Trend('queue_wait_duration', true);
 const queueExactPolls = new Counter('queue_exact_polls');
 const queueSharedPolls = new Counter('queue_shared_polls');
+const enterRetries = new Counter('enter_retries');
 
 export const options = {
   scenarios: {
@@ -51,6 +52,37 @@ function queuePollDelay(waitingCount) {
   return 8;
 }
 
+function randomHex(length) {
+  let value = '';
+  while (value.length < length) value += Math.random().toString(16).slice(2);
+  return value.slice(0, length);
+}
+
+function testEntryToken() {
+  return `${randomHex(8)}-${randomHex(4)}-4${randomHex(3)}-a${randomHex(3)}-${randomHex(12)}`;
+}
+
+function enterWithRetry() {
+  const entryToken = testEntryToken();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    if (attempt > 0) enterRetries.add(1);
+    const response = http.post(`${BASE_URL}/enter`, {
+      entry_token: entryToken,
+      response: 'json',
+    }, { redirects: 0 });
+    if (response.status === 200) {
+      try {
+        const body = response.json();
+        if (['/', '/waiting', '/apply'].includes(body.location)) {
+          return { response, body };
+        }
+      } catch (_) { /* retry malformed edge response */ }
+    }
+    if (attempt < 4) sleep(0.25 * (2 ** attempt) + Math.random() * 0.25);
+  }
+  return { response: null, body: null };
+}
+
 export default function () {
   const journeyStarted = Date.now();
   let admitted = false;
@@ -58,15 +90,16 @@ export default function () {
   let queueNo = null;
   let useSharedProgress = false;
 
-  const enter = http.get(`${BASE_URL}/enter`, { redirects: 0 });
-  const location = enter.headers.Location || '';
-  if (enter.status === 302 && location === '/' && enter.headers['X-Ticket-Result'] === 'sold-out') {
+  const entry = enterWithRetry();
+  const enter = entry.response;
+  const location = entry.body && entry.body.location || '';
+  if (enter && enter.status === 200 && location === '/' && entry.body.sold_out === true) {
     soldOut.add(1);
     handledRate.add(true);
     journeyFailure.add(false);
     return;
   }
-  if (!check(enter, { 'enter joined queue': (r) => r.status === 302 && (location === '/waiting' || location === '/apply') })) {
+  if (!check(enter, { 'enter joined queue': (r) => r && r.status === 200 && (location === '/waiting' || location === '/apply') })) {
     failJourney('enter failed', enter);
     handledRate.add(false);
     return;

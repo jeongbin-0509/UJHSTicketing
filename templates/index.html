@@ -434,6 +434,58 @@
 
   // 티켓팅 입장
 
+  function createEntryToken() {
+    if (crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, value => value.toString(16).padStart(2, "0"));
+    return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+  }
+
+  function retryDelay(attempt) {
+    return 250 * (2 ** attempt) + Math.floor(Math.random() * 250);
+  }
+
+  async function enterTicketing() {
+    const entryToken = createEntryToken();
+    const body = new URLSearchParams({
+      entry_token: entryToken,
+      response: "json"
+    });
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        const response = await fetch("/enter", {
+          method: "POST",
+          body,
+          cache: "no-store",
+          headers: { Accept: "application/json" }
+        });
+        if (!response.ok) throw new Error(`entry HTTP ${response.status}`);
+        const data = await response.json();
+        if (!["/", "/waiting", "/apply"].includes(data.location)) {
+          throw new Error("invalid entry destination");
+        }
+        window.location.replace(data.location);
+        return;
+      } catch (error) {
+        console.error("entry retry", attempt + 1, error);
+        if (attempt < 4) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay(attempt)));
+        }
+      }
+    }
+
+    entering = false;
+    button.disabled = false;
+    button.textContent = "다시 시도";
+    statusBox.className = "sale-status closed";
+    statusBox.textContent = "접속이 원활하지 않습니다. 다시 눌러주세요.";
+  }
+
   button.addEventListener(
     "click",
     () => {
@@ -452,10 +504,8 @@
       button.textContent = "접속 중...";
 
 
-      // /enter는 Redis만 사용
-      window.location.replace(
-        "/enter"
-      );
+      // 순간 연결 종료는 동일 토큰으로 재시도하여 중복 등록 없이 복구한다.
+      enterTicketing();
 
     }
   );

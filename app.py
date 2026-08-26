@@ -714,26 +714,46 @@ def index():
 
 
 # enter
-@app.route("/enter")
+@app.route("/enter", methods=["GET", "POST"])
 def enter():
-    # DB 조회 없음. schedule은 local/Redis cache.
-    if not get_sale_state()["is_open"]:
-        return redirect("/")
-    if get_remaining_seats() <= 0:
-        response = redirect("/")
-        response.headers["X-Ticket-Result"] = "sold-out"
+    wants_json = request.method == "POST" and request.form.get("response") == "json"
+
+    def entry_response(location, **extra):
+        if wants_json:
+            return jsonify({"location": location, **extra})
+        response = redirect(location)
+        if extra.get("sold_out"):
+            response.headers["X-Ticket-Result"] = "sold-out"
         return response
 
-    token = session.get("queue_token") or str(uuid.uuid4())
+    # DB 조회 없음. schedule은 local/Redis cache.
+    if not get_sale_state()["is_open"]:
+        return entry_response("/", closed=True)
+    if get_remaining_seats() <= 0:
+        return entry_response("/", sold_out=True)
+
+    client_token = None
+    if wants_json:
+        candidate = request.form.get("entry_token", "").strip()
+        try:
+            parsed = uuid.UUID(candidate)
+            if parsed.version == 4 and str(parsed) == candidate.lower():
+                client_token = str(parsed)
+        except (ValueError, AttributeError):
+            pass
+
+    # 응답이 연결 단계에서 끊겨 session cookie가 전달되지 않아도,
+    # 브라우저가 같은 UUID로 재시도하면 대기열 등록은 한 번만 일어난다.
+    token = session.get("queue_token") or client_token or str(uuid.uuid4())
     queue_no, state, _rank = enter_queue(token, session.get("queue_no"))
     session["queue_token"] = token
     session["queue_no"] = queue_no
     if state == 1:
-        return redirect("/apply")
+        return entry_response("/apply")
     if state == 0:
-        return redirect("/waiting")
+        return entry_response("/waiting")
     clear_session()
-    return redirect("/")
+    return entry_response("/")
 
 
 

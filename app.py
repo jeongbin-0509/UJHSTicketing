@@ -16,7 +16,7 @@ import psycopg2.extras
 from psycopg2 import extensions
 from psycopg2.pool import PoolError, ThreadedConnectionPool
 from dotenv import load_dotenv
-from flask import (Flask, Response, jsonify, redirect, render_template, request, send_file, session,)
+from flask import (Flask, Response, jsonify, make_response, redirect, render_template, request, send_file, session,)
 from upstash_redis import Redis
 
 load_dotenv()
@@ -55,6 +55,7 @@ QUEUE_EXACT_THRESHOLD = max(10, int(os.getenv("QUEUE_EXACT_THRESHOLD", "50")))
 ACTIVE_HEARTBEAT_TTL = int(os.getenv("ACTIVE_HEARTBEAT_TTL", "30"))
 ACTIVE_INITIAL_TTL = int(os.getenv("ACTIVE_INITIAL_TTL", "60"))
 ADMIT_TRIGGER_RATE = float(os.getenv("ADMIT_TRIGGER_RATE", "0.02"))
+HOME_EDGE_CACHE_SECONDS = max(1, int(os.getenv("HOME_EDGE_CACHE_SECONDS", "1")))
 
 if ACTIVE_HEARTBEAT_TTL < 2:
     raise RuntimeError("ACTIVE_HEARTBEAT_TTL은 2초 이상이어야 합니다.")
@@ -710,13 +711,28 @@ def healthz():
     return jsonify({"ok": True}), 200
 
 
+@app.after_request
+def protect_dynamic_responses_from_edge_cache(response):
+    """Render의 All files 캐시를 켜도 동적/개인 응답은 절대 저장하지 않는다."""
+    if "Cache-Control" in response.headers or "CDN-Cache-Control" in response.headers:
+        return response
+    if request.endpoint == "static":
+        response.headers["Cache-Control"] = "public, max-age=86400"
+        return response
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["CDN-Cache-Control"] = "no-store"
+    return response
+
+
 # main
 @app.route("/")
 def index():
+    had_session = bool(session)
     old_token = session.get("queue_token")
     if old_token:
         remove_user(old_token)
-    clear_session()
+    if had_session:
+        clear_session()
 
     # 대부분 local/Redis cache에서 끝나므로 DB 연결을 만들지 x
     remaining = get_remaining_seats()
@@ -725,7 +741,7 @@ def index():
     open_at = sale["open_at"]
     close_at = sale["close_at"]
 
-    return render_template(
+    response = make_response(render_template(
         "index.html",
         remaining=remaining,
         sale_state=sale["state"],
@@ -741,7 +757,19 @@ def index():
         open_at_ms=(int(open_at.timestamp() * 1000) if open_at else None),
         close_at_ms=(int(close_at.timestamp() * 1000) if close_at else None),
         server_now_ms=int(sale["now"].timestamp() * 1000),
-    )
+    ))
+    if had_session:
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["CDN-Cache-Control"] = "no-store"
+    else:
+        # 좌석/시간은 /enter에서 다시 검증한다. 신규 방문자의 표시용 홈만
+        # 아주 짧게 캐시해 오픈 순간의 동일 요청을 CDN에서 합친다.
+        response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+        response.headers["CDN-Cache-Control"] = (
+            f"public, s-maxage={HOME_EDGE_CACHE_SECONDS}, "
+            "stale-while-revalidate=5, stale-if-error=30"
+        )
+    return response
 
 
 # enter

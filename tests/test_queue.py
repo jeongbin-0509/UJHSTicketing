@@ -201,3 +201,43 @@ def test_progress_endpoint_returns_shared_cacheable_state(app_module, monkeypatc
     assert response.get_json()["front_queue_no"] == 21
     assert response.get_json()["exact_threshold"] == app.QUEUE_EXACT_THRESHOLD
     assert response.headers["Cache-Control"].startswith("public, max-age=3")
+
+
+def test_new_visitor_home_is_briefly_edge_cacheable(app_module):
+    app = app_module
+
+    with app.app.test_client() as client:
+        response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "public, max-age=0, must-revalidate"
+    assert response.headers["CDN-Cache-Control"].startswith("public, s-maxage=1")
+    assert "Set-Cookie" not in response.headers
+
+
+def test_home_with_existing_session_is_never_edge_cached(app_module):
+    app = app_module
+    token = "existing-user"
+    app.redis.zadd(app.WAITING_KEY, {token: 1})
+
+    with app.app.test_client() as client:
+        with client.session_transaction() as current_session:
+            current_session["queue_token"] = token
+            current_session["queue_no"] = 1
+        response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert response.headers["CDN-Cache-Control"] == "no-store"
+    assert app.redis.zscore(app.WAITING_KEY, token) is None
+
+
+def test_dynamic_response_defaults_to_no_store(app_module):
+    app = app_module
+
+    with app.app.test_client() as client:
+        response = client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert response.headers["CDN-Cache-Control"] == "no-store"

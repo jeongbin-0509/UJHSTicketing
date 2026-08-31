@@ -51,6 +51,11 @@ Render 연결 수용 구간만 분리해서 측정할 때는 `load_test_render.j
 기본값은 `/healthz`에 4,000명 순간 요청이며 `SPREAD_SECONDS=30`으로 유입을
 분산하거나 `MAX_ATTEMPTS=5`로 연결 재시도 회복률을 비교할 수 있습니다.
 
+Render Standard의 **Settings → Edge Caching → Cacheable File Types**는 `All files`로
+설정합니다. 서버는 신규 방문자의 홈만 1초간 CDN에 저장하고, 기존 세션·대기열·신청·
+관리자 응답에는 `no-store`를 강제합니다. 이 설정을 켜기 전에 캐시 관련 테스트가 모두
+통과하는지 확인해야 합니다.
+
 ---
 
 ## 2. System Architecture

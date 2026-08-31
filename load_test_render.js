@@ -10,6 +10,12 @@ const MAX_ATTEMPTS = Math.max(1, Number(__ENV.MAX_ATTEMPTS || 1));
 const endpointOk = new Rate('endpoint_ok');
 const networkStatus0 = new Counter('network_status_0');
 const retryAttempts = new Counter('retry_attempts');
+const status2xx = new Counter('status_2xx');
+const status3xx = new Counter('status_3xx');
+const status4xx = new Counter('status_4xx');
+const status429 = new Counter('status_429');
+const status5xx = new Counter('status_5xx');
+const statusOther = new Counter('status_other');
 
 export const options = {
   scenarios: {
@@ -34,11 +40,18 @@ export default function () {
     const params = {
       redirects: 0,
       timeout: '60s',
+      tags: { endpoint: PATH },
     };
     const response = METHOD === 'POST'
       ? http.post(`${BASE_URL}${PATH}`, { entry_token: entryToken, response: 'json' }, params)
       : http.get(`${BASE_URL}${PATH}`, params);
     const passed = response.status >= 200 && response.status < 400;
+    if (response.status >= 200 && response.status < 300) status2xx.add(1);
+    else if (response.status >= 300 && response.status < 400) status3xx.add(1);
+    else if (response.status === 429) status429.add(1);
+    else if (response.status >= 400 && response.status < 500) status4xx.add(1);
+    else if (response.status >= 500 && response.status < 600) status5xx.add(1);
+    else if (response.status !== 0) statusOther.add(1);
     if (passed) {
       endpointOk.add(true);
       return;

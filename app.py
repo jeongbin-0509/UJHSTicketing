@@ -141,6 +141,37 @@ def release_db(conn, discard=False):
         _db_slots.release()
 
 
+def run_db_operation(operation, label="database operation"):
+    """손상된 pooled connection만 폐기하고 새 연결로 한 번 재시도한다."""
+    for attempt in range(2):
+        conn = None
+        discard = False
+        try:
+            conn = get_db()
+            return operation(conn)
+        except psycopg2.OperationalError as error:
+            discard = True
+            if attempt == 0:
+                print(f"DB CONNECTION RETRY [{label}]:", repr(error))
+                continue
+            print(f"DB OPERATIONAL ERROR [{label}]:", repr(error))
+            raise
+        finally:
+            if conn is not None:
+                release_db(conn, discard=discard)
+
+
+@app.errorhandler(DatabaseBusyError)
+def handle_database_busy(_error):
+    return "DB 연결이 혼잡합니다. 잠시 후 다시 시도해주세요.", 503
+
+
+@app.errorhandler(psycopg2.OperationalError)
+def handle_database_connection_error(error):
+    print("UNRECOVERED DB OPERATIONAL ERROR:", repr(error))
+    return "DB 연결이 일시적으로 불안정합니다. 다시 시도해주세요.", 503
+
+
 _local_sale = {"expires": 0.0, "data": None}
 _local_seat = {"expires": 0.0, "data": None}
 _local_queue_progress = {"expires": 0.0, "data": None}
@@ -1094,34 +1125,36 @@ def success():
 def admin():
     admit_users()
 
-    conn = get_db()
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            """
-            SELECT
-                id,
-                student_name,
-                student_phone,
-                parent_name,
-                parent_phone,
-                people_count,
-                seat_numbers,
-                created_at
-            FROM reservations
-            ORDER BY id ASC
-            """
-        )
-        reservations = cur.fetchall()
+    def load_admin_data(conn):
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    student_name,
+                    student_phone,
+                    parent_name,
+                    parent_phone,
+                    people_count,
+                    seat_numbers,
+                    created_at
+                FROM reservations
+                ORDER BY id ASC
+                """
+            )
+            reservations = cur.fetchall()
 
-        cur.execute("SELECT next_seat, total_seats FROM seat_counter WHERE id = 1")
-        seat = cur.fetchone()
+            cur.execute("SELECT next_seat, total_seats FROM seat_counter WHERE id = 1")
+            seat = cur.fetchone()
 
-        cur.execute("SELECT open_at, close_at FROM ticket_settings WHERE id = 1")
-        settings = cur.fetchone()
-    finally:
-        cur.close()
-        release_db(conn)
+            cur.execute("SELECT open_at, close_at FROM ticket_settings WHERE id = 1")
+            settings = cur.fetchone()
+            return reservations, seat, settings
+        finally:
+            cur.close()
+
+    reservations, seat, settings = run_db_operation(load_admin_data, "admin read")
 
     if not seat:
         return "seat_counter가 없습니다.", 500
@@ -1168,22 +1201,23 @@ def update_schedule():
     if close_at and close_at <= open_at:
         return "마감 시간은 오픈 시간보다 뒤여야 합니다.", 400
 
-    conn = get_db()
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            """
-            INSERT INTO ticket_settings (id, open_at, close_at)
-            VALUES (1, %s, %s)
-            ON CONFLICT (id)
-            DO UPDATE SET open_at = EXCLUDED.open_at, close_at = EXCLUDED.close_at
-            """,
-            (open_at, close_at),
-        )
-        conn.commit()
-    finally:
-        cur.close()
-        release_db(conn)
+    def save_schedule(conn):
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                INSERT INTO ticket_settings (id, open_at, close_at)
+                VALUES (1, %s, %s)
+                ON CONFLICT (id)
+                DO UPDATE SET open_at = EXCLUDED.open_at, close_at = EXCLUDED.close_at
+                """,
+                (open_at, close_at),
+            )
+            conn.commit()
+        finally:
+            cur.close()
+
+    run_db_operation(save_schedule, "admin schedule update")
 
     set_sale_schedule_cache(open_at, close_at)
     if reset_queue:
@@ -1203,24 +1237,29 @@ def update_seats():
     if total_seats < 1:
         return "전체 좌석은 1석 이상이어야 합니다.", 400
 
-    conn = get_db()
-    cur = conn.cursor()
-    try:
-        cur.execute("SELECT next_seat FROM seat_counter WHERE id = 1")
-        row = cur.fetchone()
-        if not row:
-            return "seat_counter가 없습니다.", 500
+    def save_seat_count(conn):
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT next_seat FROM seat_counter WHERE id = 1")
+            row = cur.fetchone()
+            if not row:
+                return None, "seat_counter가 없습니다.", 500
 
-        next_seat = int(row["next_seat"])
-        used = next_seat - 1
-        if total_seats < used:
-            return f"이미 {used}석이 사용되어 전체 좌석을 그보다 작게 설정할 수 없습니다.", 400
+            next_seat = int(row["next_seat"])
+            used = next_seat - 1
+            if total_seats < used:
+                message = f"이미 {used}석이 사용되어 전체 좌석을 그보다 작게 설정할 수 없습니다."
+                return None, message, 400
 
-        cur.execute("UPDATE seat_counter SET total_seats = %s WHERE id = 1", (total_seats,))
-        conn.commit()
-    finally:
-        cur.close()
-        release_db(conn)
+            cur.execute("UPDATE seat_counter SET total_seats = %s WHERE id = 1", (total_seats,))
+            conn.commit()
+            return next_seat, None, None
+        finally:
+            cur.close()
+
+    next_seat, error_message, error_status = run_db_operation(save_seat_count, "admin seat update")
+    if error_message:
+        return error_message, error_status
 
     set_seat_snapshot(next_seat, total_seats)
     return redirect("/admin")
@@ -1229,9 +1268,8 @@ def update_seats():
 @app.route("/admin/excel")
 @admin_required
 def excel():
-    conn = get_db()
-    try:
-        df = pd.read_sql_query(
+    def load_excel_data(conn):
+        return pd.read_sql_query(
             """
             SELECT
                 id AS 번호,
@@ -1247,8 +1285,8 @@ def excel():
             """,
             conn,
         )
-    finally:
-        release_db(conn)
+
+    df = run_db_operation(load_excel_data, "admin excel export")
 
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -1276,17 +1314,18 @@ def reset_queue():
 def reset_test():
     reset_queue_data()
 
-    conn = get_db()
-    cur = conn.cursor()
-    try:
-        cur.execute("TRUNCATE TABLE reservations RESTART IDENTITY")
-        cur.execute("UPDATE seat_counter SET next_seat = 1 WHERE id = 1 RETURNING total_seats")
-        row = cur.fetchone()
-        conn.commit()
-        total_seats = int(row["total_seats"]) if row else 0
-    finally:
-        cur.close()
-        release_db(conn)
+    def clear_reservations(conn):
+        cur = conn.cursor()
+        try:
+            cur.execute("TRUNCATE TABLE reservations RESTART IDENTITY")
+            cur.execute("UPDATE seat_counter SET next_seat = 1 WHERE id = 1 RETURNING total_seats")
+            row = cur.fetchone()
+            conn.commit()
+            return int(row["total_seats"]) if row else 0
+        finally:
+            cur.close()
+
+    total_seats = run_db_operation(clear_reservations, "admin reservation reset")
 
     set_seat_snapshot(1, total_seats)
     return redirect("/admin")

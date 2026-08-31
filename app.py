@@ -711,6 +711,16 @@ def healthz():
     return jsonify({"ok": True}), 200
 
 
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
+
+@app.route("/notice")
+def notice():
+    return render_template("notice.html")
+
+
 @app.after_request
 def protect_dynamic_responses_from_edge_cache(response):
     """Render의 All files 캐시를 켜도 동적/개인 응답은 절대 저장하지 않는다."""

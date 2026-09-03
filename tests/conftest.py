@@ -73,6 +73,7 @@ def app_module():
         "UPSTASH_REDIS_REST_URL": "https://unused",
         "UPSTASH_REDIS_REST_TOKEN": "unused",
         "REDIS_KEY_PREFIX": "test:ticket",
+        "TICKETING_ENABLED": "1",
     })
     fake = RedisAdapter()
     original_pool = psycopg2.pool.ThreadedConnectionPool

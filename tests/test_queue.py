@@ -211,7 +211,7 @@ def test_new_visitor_home_is_briefly_edge_cacheable(app_module):
 
     assert response.status_code == 200
     assert response.headers["Cache-Control"] == "public, max-age=0, must-revalidate"
-    assert response.headers["CDN-Cache-Control"].startswith("public, s-maxage=1")
+    assert response.headers["CDN-Cache-Control"].startswith("public, s-maxage=300")
     assert "Set-Cookie" not in response.headers
 
 
@@ -241,3 +241,81 @@ def test_dynamic_response_defaults_to_no_store(app_module):
     assert response.status_code == 200
     assert response.headers["Cache-Control"] == "private, no-store"
     assert response.headers["CDN-Cache-Control"] == "no-store"
+
+
+def test_lookup_normalizes_phone_and_returns_assigned_seats(app_module, monkeypatch):
+    app = app_module
+    monkeypatch.setattr(app, "lookup_rate_allowed", lambda _phone: True)
+    captured = {}
+
+    def fake_lookup(student_name, student_phone, parent_phone_last4):
+        captured.update({
+            "student_name": student_name,
+            "student_phone": student_phone,
+            "parent_phone_last4": parent_phone_last4,
+        })
+        return {
+            "student_name": "홍길동",
+            "people_count": 2,
+            "seat_numbers": "778, 779",
+        }
+
+    monkeypatch.setattr(app, "find_reservation", fake_lookup)
+    with app.app.test_client() as client:
+        response = client.post("/lookup", data={
+            "student_name": "홍길동",
+            "student_phone": "01012345678",
+            "parent_phone_last4": "8765",
+        })
+
+    assert response.status_code == 200
+    assert "778, 779" in response.get_data(as_text=True)
+    assert captured == {
+        "student_name": "홍길동",
+        "student_phone": "010-1234-5678",
+        "parent_phone_last4": "8765",
+    }
+    assert response.headers["Cache-Control"] == "private, no-store"
+
+
+def test_lookup_uses_same_message_for_invalid_and_missing_records(app_module, monkeypatch):
+    app = app_module
+    monkeypatch.setattr(app, "lookup_rate_allowed", lambda _phone: True)
+    monkeypatch.setattr(app, "find_reservation", lambda *_args: None)
+
+    with app.app.test_client() as client:
+        invalid = client.post("/lookup", data={
+            "student_name": "홍길동",
+            "student_phone": "잘못된 번호",
+            "parent_phone_last4": "12",
+        })
+        missing = client.post("/lookup", data={
+            "student_name": "홍길동",
+            "student_phone": "010-1234-5678",
+            "parent_phone_last4": "8765",
+        })
+
+    expected = "입력 정보와 일치하는 신청 내역을 찾을 수 없습니다."
+    assert expected in invalid.get_data(as_text=True)
+    assert expected in missing.get_data(as_text=True)
+
+
+def test_ticketing_entry_can_be_disabled(app_module, monkeypatch):
+    app = app_module
+    monkeypatch.setattr(app, "TICKETING_ENABLED", False)
+
+    with app.app.test_client() as client:
+        response = client.post("/enter", data={"response": "json"})
+
+    assert response.status_code == 200
+    assert response.get_json() == {"location": "/", "closed": True}
+
+
+def test_lookup_rate_limit_blocks_repeated_attempts(app_module, monkeypatch):
+    app = app_module
+    monkeypatch.setattr(app, "LOOKUP_RATE_LIMIT", 2)
+
+    with app.app.test_request_context(headers={"CF-Connecting-IP": "203.0.113.10"}):
+        assert app.lookup_rate_allowed("010-1234-5678") is True
+        assert app.lookup_rate_allowed("010-1234-5678") is True
+        assert app.lookup_rate_allowed("010-1234-5678") is False

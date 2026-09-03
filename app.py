@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import random
@@ -55,7 +56,10 @@ QUEUE_EXACT_THRESHOLD = max(10, int(os.getenv("QUEUE_EXACT_THRESHOLD", "50")))
 ACTIVE_HEARTBEAT_TTL = int(os.getenv("ACTIVE_HEARTBEAT_TTL", "30"))
 ACTIVE_INITIAL_TTL = int(os.getenv("ACTIVE_INITIAL_TTL", "60"))
 ADMIT_TRIGGER_RATE = float(os.getenv("ADMIT_TRIGGER_RATE", "0.02"))
-HOME_EDGE_CACHE_SECONDS = max(1, int(os.getenv("HOME_EDGE_CACHE_SECONDS", "1")))
+HOME_EDGE_CACHE_SECONDS = max(1, int(os.getenv("HOME_EDGE_CACHE_SECONDS", "300")))
+TICKETING_ENABLED = os.getenv("TICKETING_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
+LOOKUP_RATE_LIMIT = max(1, int(os.getenv("LOOKUP_RATE_LIMIT", "10")))
+LOOKUP_RATE_WINDOW_SECONDS = max(60, int(os.getenv("LOOKUP_RATE_WINDOW_SECONDS", "600")))
 
 if ACTIVE_HEARTBEAT_TTL < 2:
     raise RuntimeError("ACTIVE_HEARTBEAT_TTL은 2초 이상이어야 합니다.")
@@ -689,6 +693,58 @@ def valid_name(value):
 def valid_phone(value):
     return bool(re.fullmatch(r"01[0-9]-\d{3,4}-\d{4}", value or ""))
 
+
+def normalize_phone(value):
+    digits = re.sub(r"\D", "", value or "")
+    if len(digits) == 10:
+        return f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+    if len(digits) == 11:
+        return f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
+    return None
+
+
+def lookup_rate_allowed(student_phone):
+    forwarded = request.headers.get("CF-Connecting-IP") or request.headers.get("X-Forwarded-For", "")
+    client_ip = forwarded.split(",", 1)[0].strip() or request.remote_addr or "unknown"
+    ip_hash = hashlib.sha256(client_ip.encode()).hexdigest()[:24]
+    phone_hash = hashlib.sha256(student_phone.encode()).hexdigest()[:24]
+    result = redis.eval(
+        """
+        local function bump(key, window)
+            local count = redis.call('INCR', key)
+            if count == 1 then redis.call('EXPIRE', key, window) end
+            return count
+        end
+        return {bump(KEYS[1], ARGV[1]), bump(KEYS[2], ARGV[1])}
+        """,
+        keys=[f"{KEY_PREFIX}:lookup_rate:ip:{ip_hash}", f"{KEY_PREFIX}:lookup_rate:phone:{phone_hash}"],
+        args=[str(LOOKUP_RATE_WINDOW_SECONDS)],
+    )
+    return int(result[0]) <= LOOKUP_RATE_LIMIT and int(result[1]) <= LOOKUP_RATE_LIMIT
+
+
+def find_reservation(student_name, student_phone, parent_phone_last4):
+    def query(conn):
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT student_name, people_count, seat_numbers
+                FROM reservations
+                WHERE student_name = %s
+                  AND student_phone = %s
+                  AND RIGHT(REGEXP_REPLACE(parent_phone, '[^0-9]', '', 'g'), 4) = %s
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (student_name, student_phone, parent_phone_last4),
+            )
+            return cur.fetchone()
+        finally:
+            cur.close()
+
+    return run_db_operation(query, "reservation lookup")
+
 def warm_shared_caches():
     """worker 시작 시 DB pool의 연결을 이용해 표시용 cache를 미리 준비한다."""
     try:
@@ -744,42 +800,53 @@ def index():
     if had_session:
         clear_session()
 
-    # 대부분 local/Redis cache에서 끝나므로 DB 연결을 만들지 x
-    remaining = get_remaining_seats()
-    sale = get_sale_state()
-
-    open_at = sale["open_at"]
-    close_at = sale["close_at"]
-
-    response = make_response(render_template(
-        "index.html",
-        remaining=remaining,
-        sale_state=sale["state"],
-        open_at_text=(
-            f"{open_at.astimezone(KST).month}월 "
-            f"{open_at.astimezone(KST).day}일 "
-            f"{open_at.astimezone(KST).hour}시 "
-            f"{open_at.astimezone(KST).minute:02d}분 오픈 예정"
-            if open_at
-            else None
-        ),
-        close_at_text=(close_at.astimezone(KST).strftime("%m월 %d일 %H시 %M분") if close_at else None),
-        open_at_ms=(int(open_at.timestamp() * 1000) if open_at else None),
-        close_at_ms=(int(close_at.timestamp() * 1000) if close_at else None),
-        server_now_ms=int(sale["now"].timestamp() * 1000),
-    ))
+    response = make_response(render_template("index.html"))
     if had_session:
         response.headers["Cache-Control"] = "private, no-store"
         response.headers["CDN-Cache-Control"] = "no-store"
     else:
-        # 좌석/시간은 /enter에서 다시 검증한다. 신규 방문자의 표시용 홈만
-        # 아주 짧게 캐시해 오픈 순간의 동일 요청을 CDN에서 합친다.
+        # 조회 폼에는 개인정보가 없으므로 신규 방문자 응답만 CDN에서 제공한다.
         response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
         response.headers["CDN-Cache-Control"] = (
             f"public, s-maxage={HOME_EDGE_CACHE_SECONDS}, "
             "stale-while-revalidate=5, stale-if-error=30"
         )
     return response
+
+
+@app.route("/lookup", methods=["POST"])
+def lookup_reservation():
+    student_name = request.form.get("student_name", "").strip()
+    student_phone = normalize_phone(request.form.get("student_phone", ""))
+    parent_phone_last4 = re.sub(r"\D", "", request.form.get("parent_phone_last4", ""))
+    generic_error = "입력 정보와 일치하는 신청 내역을 찾을 수 없습니다."
+
+    if (
+        not valid_name(student_name)
+        or not student_phone
+        or not valid_phone(student_phone)
+        or not re.fullmatch(r"\d{4}", parent_phone_last4)
+    ):
+        return render_template("index.html", lookup_error=generic_error), 200
+
+    if not lookup_rate_allowed(student_phone):
+        return render_template(
+            "index.html",
+            lookup_error="조회 횟수가 너무 많습니다. 10분 뒤 다시 시도해주세요.",
+        ), 429
+
+    reservation = find_reservation(student_name, student_phone, parent_phone_last4)
+    if not reservation:
+        return render_template("index.html", lookup_error=generic_error), 200
+
+    return render_template(
+        "index.html",
+        lookup_result={
+            "student_name": reservation["student_name"],
+            "people_count": int(reservation["people_count"]),
+            "seat_numbers": reservation["seat_numbers"],
+        },
+    )
 
 
 # enter
@@ -794,6 +861,9 @@ def enter():
         if extra.get("sold_out"):
             response.headers["X-Ticket-Result"] = "sold-out"
         return response
+
+    if not TICKETING_ENABLED:
+        return entry_response("/", closed=True)
 
     # DB 조회 없음. schedule은 local/Redis cache.
     if not get_sale_state()["is_open"]:

@@ -1,531 +1,219 @@
 <!doctype html>
 <html lang="ko">
-
-<head>
-  <link rel="icon" href="data:,">
-  <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
-
-  <title>운정고 입시설명회 티켓팅</title>
-
-  <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f5f6f8;
-      color: #191919;
-    }
-
-    header {
-      height: 72px;
-      background: #fff;
-      border-bottom: 1px solid #e5e7eb;
-
-      display: flex;
-      align-items: center;
-
-      padding: 0 40px;
-
-      font-size: 20px;
-      font-weight: 700;
-    }
-
-    .container {
-      max-width: 920px;
-      margin: 60px auto;
-      padding: 0 20px;
-    }
-
-    .card,
-    .notice {
-      background: #fff;
-      border-radius: 18px;
-
-      box-shadow:
-        0 8px 30px rgba(0, 0, 0, .07);
-    }
-
-    .card {
-      overflow: hidden;
-    }
-
-    .top {
-      padding: 40px;
-    }
-
-    .tag {
-      color: #2563eb;
-      font-weight: 700;
-      margin-bottom: 12px;
-    }
-
-    h1 {
-      margin: 0 0 20px;
-    }
-
-    .info {
-      color: #555;
-      line-height: 1.9;
-    }
-
-    .bottom {
-      border-top: 1px solid #eee;
-
-      padding: 28px 40px;
-
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-
-      gap: 20px;
-    }
-
-    .remaining strong {
-      color: #2563eb;
-      font-size: 22px;
-    }
-
-    .sale-status {
-      margin-top: 18px;
-
-      padding: 14px 16px;
-
-      border-radius: 10px;
-      background: #f8fafc;
-
-      font-weight: 700;
-    }
-
-    .sale-status.before {
-      color: #b45309;
-    }
-
-    .sale-status.open {
-      color: #15803d;
-    }
-
-    .sale-status.closed,
-    .sale-status.not_configured {
-      color: #64748b;
-    }
-
-    button {
-      padding: 15px 36px;
-
-      border: 0;
-      border-radius: 10px;
-
-      background: #2563eb;
-      color: #fff;
-
-      font-size: 17px;
-      font-weight: 700;
-
-      cursor: pointer;
-
-      min-width: 150px;
-    }
-
-    button:hover:not(:disabled) {
-      background: #1d4ed8;
-    }
-
-    button:disabled {
-      background: #94a3b8;
-      cursor: default;
-    }
-
-    .notice {
-      margin-top: 22px;
-      padding: 25px 30px;
-
-      color: #555;
-      line-height: 1.9;
-    }
-
-    @media (max-width: 600px) {
-      header {
-        padding: 0 20px;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href="data:," />
+    <title>입학설명회 신청 좌석 조회</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --blue: #2563eb;
+        --blue-dark: #1d4ed8;
+        --blue-soft: #eff6ff;
+        --text: #172033;
+        --muted: #667085;
+        --line: #d9e0ea;
+        --danger: #b42318;
+        --danger-soft: #fef3f2;
       }
 
-      .container {
-        margin-top: 30px;
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 28px 18px;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at top left, #dbeafe 0, transparent 35%),
+          linear-gradient(160deg, #f8fafc 0%, #eef2ff 100%);
+        color: var(--text);
+        font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
-      .top {
-        padding: 28px;
+      main {
+        width: min(100%, 480px);
+        padding: 36px 32px 30px;
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(217, 224, 234, 0.9);
+        border-radius: 24px;
+        box-shadow: 0 22px 60px rgba(37, 64, 120, 0.13);
       }
 
-      .bottom {
-        padding: 24px 28px;
+      .badge {
+        display: inline-flex;
+        padding: 7px 11px;
+        border-radius: 999px;
+        background: var(--blue-soft);
+        color: var(--blue-dark);
+        font-size: 13px;
+        font-weight: 750;
+      }
 
-        flex-direction: column;
-        align-items: stretch;
+      h1 {
+        margin: 16px 0 10px;
+        font-size: clamp(25px, 7vw, 32px);
+        line-height: 1.25;
+        letter-spacing: -0.04em;
+      }
+
+      .intro {
+        margin: 0 0 26px;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.65;
+      }
+
+      form { display: grid; gap: 17px; }
+
+      label {
+        display: grid;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      input {
+        width: 100%;
+        height: 50px;
+        padding: 0 15px;
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        background: #fff;
+        color: var(--text);
+        font: inherit;
+        font-size: 16px;
+        outline: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+
+      input:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
       }
 
       button {
-        width: 100%;
-      }
-    }
-  </style>
-</head>
-
-
-<body>
-
-<header>
-  운정고등학교
-</header>
-
-
-<main class="container">
-
-  <section class="card">
-
-    <div class="top">
-
-      <div class="tag">
-        운정고 입시설명회 티켓팅 사이트
-      </div>
-
-      <h1>
-        운정고 입시설명회 신청
-      </h1>
-
-      <!-- 판매 상태 -->
-      <div
-        id="saleStatus"
-        class="sale-status {{ sale_state }}"
-      >
-
-        {% if sale_state == 'before' %}
-          {{ open_at_text }}
-
-        {% elif sale_state == 'open' %}
-
-          현재 오픈 중
-
-          {% if close_at_text %}
-            · {{ close_at_text }} 마감
-          {% endif %}
-
-        {% elif sale_state == 'closed' %}
-
-          신청이 종료되었습니다.
-
-        {% else %}
-
-          관리자가 아직 오픈 시간을 설정하지 않았습니다.
-
-        {% endif %}
-
-      </div>
-
-    </div>
-
-
-    <div class="bottom">
-
-      <div class="remaining">
-
-        남은 좌석
-
-        <strong>
-          {{ remaining }}
-        </strong>
-
-        석
-
-      </div>
-
-
-      <button
-        id="reserveBtn"
-
-        {% if sale_state != 'open' or remaining <= 0 %}
-          disabled
-        {% endif %}
-      >
-
-        {% if remaining <= 0 %}
-
-          마감
-
-        {% elif sale_state == 'open' %}
-
-          티켓팅 입장
-
-        {% elif sale_state == 'before' %}
-
-          오픈 대기
-
-        {% else %}
-
-          입장 불가
-
-        {% endif %}
-
-      </button>
-
-    </div>
-
-  </section>
-
-
-  <section class="notice">
-
-    <strong>
-      신청 안내
-    </strong>
-
-    <br><br>
-
-    · 지정된 오픈 시간 전에는 티켓팅에 입장할 수 없습니다.
-    <br>
-
-    · 오픈 시간이 되면 입장 버튼이 자동으로 활성화됩니다.
-    <br>
-
-    · 신청창에서 학생/보호자 정보와 신청 인원을 입력합니다.
-    <br>
-
-    · 같은 학생 전화번호로는 한 번만 신청할 수 있습니다.
-
-  </section>
-
-</main>
-
-
-<script>
-
-  const button =
-    document.getElementById("reserveBtn");
-
-  const statusBox =
-    document.getElementById("saleStatus");
-
-
-  const openAt =
-    {{ open_at_ms if open_at_ms is not none else 'null' }};
-
-  const closeAt =
-    {{ close_at_ms if close_at_ms is not none else 'null' }};
-
-  const initialServerNow =
-    {{ server_now_ms }};
-
-  const clientStarted =
-    Date.now();
-
-  const remainingSeats =
-    {{ remaining }};
-
-
-  // 중복 입장 방지
-  let entering = false;
-
-
-  // 서버 시간을 기준으로 계산
-  function serverNow() {
-
-    return (
-      initialServerNow
-      +
-      (Date.now() - clientStarted)
-    );
-
-  }
-
-
-  function updateState() {
-
-    // 입장 요청을 시작했으면
-    // 버튼 상태를 다시 변경하지 않음
-    if (entering) {
-      return;
-    }
-
-
-    const now =
-      serverNow();
-
-
-    // 좌석 마감
-
-    if (remainingSeats <= 0) {
-
-      button.disabled = true;
-      button.textContent = "마감";
-
-      return;
-    }
-
-
-    // 오픈시간 미설정
-
-    if (!openAt) {
-
-      button.disabled = true;
-      button.textContent = "입장 불가";
-
-      statusBox.className =
-        "sale-status not_configured";
-
-      statusBox.textContent =
-        "관리자가 아직 오픈 시간을 설정하지 않았습니다.";
-
-      return;
-    }
-
-
-    // 오픈 전
-
-    if (now < openAt) {
-      button.disabled = true;
-      button.textContent = "오픈 대기";
-
-      statusBox.className = "sale-status before";
-      statusBox.textContent = "{{ open_at_text }}";
-
-      return;
-    }
-
-
-    // 마감
-
-    if (
-      closeAt &&
-      now >= closeAt
-    ) {
-
-      button.disabled = true;
-      button.textContent = "종료";
-
-      statusBox.className =
-        "sale-status closed";
-
-      statusBox.textContent =
-        "신청이 종료되었습니다.";
-
-      return;
-    }
-
-
-    // 오픈
-
-    button.disabled = false;
-    button.textContent = "티켓팅 입장";
-
-    statusBox.className =
-      "sale-status open";
-
-    statusBox.textContent =
-      "현재 오픈 중";
-
-  }
-
-
-  // 티켓팅 입장
-
-  function createEntryToken() {
-    if (crypto.randomUUID) {
-      return crypto.randomUUID();
-    }
-    const bytes = crypto.getRandomValues(new Uint8Array(16));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = Array.from(bytes, value => value.toString(16).padStart(2, "0"));
-    return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
-  }
-
-  function retryDelay(attempt) {
-    return 250 * (2 ** attempt) + Math.floor(Math.random() * 250);
-  }
-
-  async function enterTicketing() {
-    const entryToken = createEntryToken();
-    const body = new URLSearchParams({
-      entry_token: entryToken,
-      response: "json"
-    });
-
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      try {
-        const response = await fetch("/enter", {
-          method: "POST",
-          body,
-          cache: "no-store",
-          headers: { Accept: "application/json" }
-        });
-        if (!response.ok) throw new Error(`entry HTTP ${response.status}`);
-        const data = await response.json();
-        if (!["/", "/waiting", "/apply"].includes(data.location)) {
-          throw new Error("invalid entry destination");
-        }
-        window.location.replace(data.location);
-        return;
-      } catch (error) {
-        console.error("entry retry", attempt + 1, error);
-        if (attempt < 4) {
-          await new Promise(resolve => setTimeout(resolve, retryDelay(attempt)));
-        }
-      }
-    }
-
-    entering = false;
-    button.disabled = false;
-    button.textContent = "다시 시도";
-    statusBox.className = "sale-status closed";
-    statusBox.textContent = "접속이 원활하지 않습니다. 다시 눌러주세요.";
-  }
-
-  button.addEventListener(
-    "click",
-    () => {
-
-      if (
-        button.disabled ||
-        entering
-      ) {
-        return;
+        height: 52px;
+        margin-top: 5px;
+        border: 0;
+        border-radius: 12px;
+        background: var(--blue);
+        color: #fff;
+        font: inherit;
+        font-size: 16px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: background 0.15s, transform 0.15s;
       }
 
+      button:hover { background: var(--blue-dark); }
+      button:active { transform: translateY(1px); }
 
-      entering = true;
+      .message {
+        margin-bottom: 22px;
+        padding: 14px 15px;
+        border-radius: 12px;
+        font-size: 14px;
+        line-height: 1.55;
+      }
 
-      button.disabled = true;
-      button.textContent = "접속 중...";
+      .error {
+        background: var(--danger-soft);
+        color: var(--danger);
+        border: 1px solid #fecdca;
+      }
 
+      .result {
+        margin-bottom: 25px;
+        padding: 22px;
+        border: 1px solid #bfdbfe;
+        border-radius: 16px;
+        background: var(--blue-soft);
+        text-align: center;
+      }
 
-      // 순간 연결 종료는 동일 토큰으로 재시도하여 중복 등록 없이 복구한다.
-      enterTicketing();
+      .result strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 17px;
+      }
 
-    }
-  );
+      .seat-label {
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 13px;
+      }
 
+      .seat-number {
+        margin-top: 5px;
+        color: var(--blue-dark);
+        font-size: clamp(30px, 9vw, 40px);
+        font-weight: 850;
+        letter-spacing: -0.03em;
+      }
 
-  // 최초 상태 확인
-  updateState();
+      .privacy {
+        margin: 22px 0 0;
+        padding-top: 20px;
+        border-top: 1px solid #edf0f5;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
 
+      @media (max-width: 420px) {
+        body { padding: 14px; }
+        main { padding: 30px 21px 25px; border-radius: 19px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="badge">운정고등학교 입학설명회</span>
+      <h1>신청 좌석 조회</h1>
+      <p class="intro">
+        신청할 때 입력한 정보를 정확히 입력하면 배정받은 좌석을 다시 확인할 수 있습니다.
+      </p>
 
-  // 오픈시간 도달 여부만 브라우저에서 계산
-  // 서버 요청은 발생하지 않음
-  setInterval(
-    updateState,
-    250
-  );
+      {% if lookup_error %}
+        <div class="message error" role="alert">{{ lookup_error }}</div>
+      {% endif %}
 
-</script>
+      {% if lookup_result %}
+        <section class="result" aria-live="polite">
+          <strong>{{ lookup_result.student_name }}님의 신청 내역입니다.</strong>
+          <div>신청 인원: {{ lookup_result.people_count }}명</div>
+          <div class="seat-label">배정 좌석</div>
+          <div class="seat-number">{{ lookup_result.seat_numbers }}</div>
+        </section>
+      {% endif %}
 
+      <form action="/lookup" method="post" autocomplete="off">
+        <label>
+          학생 이름
+          <input name="student_name" type="text" maxlength="20" required autocomplete="name" placeholder="신청할 때 입력한 학생 이름" />
+        </label>
 
-  {% include "_footer.html" %}
-</body>
+        <label>
+          학생 전화번호
+          <input name="student_phone" type="tel" inputmode="numeric" maxlength="13" required autocomplete="tel" placeholder="010-1234-5678" />
+        </label>
+
+        <label>
+          보호자 전화번호 뒤 4자리
+          <input name="parent_phone_last4" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required placeholder="5678" />
+        </label>
+
+        <button type="submit">내 좌석 확인하기</button>
+      </form>
+
+      <p class="privacy">
+        개인정보 보호를 위해 세 정보가 모두 일치할 때만 조회됩니다. 반복해서 잘못 입력하면 잠시 조회가 제한될 수 있습니다.
+      </p>
+    </main>
+    {% include "_footer.html" %}
+  </body>
 </html>
